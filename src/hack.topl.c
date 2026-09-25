@@ -24,6 +24,10 @@ struct topl {
   struct topl *next_topl;
   char *topl_text;
 } *old_toplines, *last_redone_topl;
+/* RVIP auto_more: message --More-- no longer waits; ^P recalls, the web
+   build shows every message in its message window (be_msg). */
+int auto_more = 1;
+void be_msg(const char *s);
 #define OTLMAX 20 /* max nr of old toplines remembered */
 
 int doredotopl(void) {
@@ -48,13 +52,23 @@ void redotoplin(void) {
   tlx = curx;
   tly = cury;
   flags.toplin = 1;
-  if (tly > 1)
+  if (tly > 1 && !auto_more)
     more();
+}
+
+static void skipmore(void) {
+  if (tly > 1) {
+    home();
+    cl_end();
+    docorner(1, tly - 1);
+  }
+  flags.toplin = 0;
 }
 
 void remember_topl(void) {
   struct topl *tl;
   int cnt = OTLMAX;
+  be_msg(toplines);
   if (last_redone_topl && !strcmp(toplines, last_redone_topl->topl_text))
     return;
   if (old_toplines && !strcmp(toplines, old_toplines->topl_text))
@@ -332,7 +346,10 @@ pline(const char *line, ...) {
     return;
   }
   if (flags.toplin == 1) {
-    more();
+    if (auto_more)
+      skipmore();
+    else
+      more();
   }
   remember_topl();
   toplines[0] = 0;
