@@ -96,7 +96,7 @@ TERR = {  # key: (NetHack, DawnLike)
  'vwall': ('main walls vertical', 'dim brick wall up down'),
  'tl': ('main walls tlcorn', 'dim brick wall right down'), 'tr': ('main walls trcorn', 'dim brick wall left down'),
  'bl': ('main walls blcorn', 'dim brick wall right up'), 'br': ('main walls brcorn', 'dim brick wall left up'),
- 'hdoor': ('horizontal open door', 'broken wooden door'), 'vdoor': ('vertical open door', 'broken wooden door'), 'up': ('staircase up', 'small stairs up'),
+ 'up': ('staircase up', 'small stairs up'),
  'down': ('staircase down', 'small stairs down'), 'pool': ('water', 'deep water tile'),
  'trap': ('magic trap', 'magic trap tile'), 'bear': ('bear trap', 'bear trap tile'), 'arrow': ('arrow trap', 'arrow trap tile'),
  'dart': ('dart trap', 'dart trap tile'), 'trapdoor': ('trap door', 'trap door tile'),

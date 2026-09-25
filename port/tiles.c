@@ -24,7 +24,7 @@ static int keyed(const char *pfx, const char *s)
 
 #define T(name) (t_##name >= 0 ? t_##name : (t_##name = slot("T:" #name)))
 static int t_floor = -1, t_corr = -1, t_hwall = -1, t_vwall = -1, t_tl = -1, t_tr = -1, t_bl = -1, t_br = -1,
-           t_hdoor = -1, t_vdoor = -1, t_up = -1, t_down = -1, t_pool = -1, t_trap = -1, t_bear = -1, t_arrow = -1, t_dart = -1,
+           t_up = -1, t_down = -1, t_pool = -1, t_trap = -1, t_bear = -1, t_arrow = -1, t_dart = -1,
            t_trapdoor = -1, t_teleport = -1, t_sleep = -1, t_pierc = -1, t_gold = -1;
 
 static int sym(int x, int y) { return x < 1 || x >= COLNO || y < 0 || y >= ROWNO ? ' ' : levl[x][y].scrsym; }
@@ -43,13 +43,10 @@ static int expect(int x, int y)
     return r->scrsym ? r->scrsym : ' ';
 }
 
-static int door(int x, int y) { return sym(x - 1, y) == '-' || sym(x + 1, y) == '-' ? T(hdoor) : T(vdoor); }
-
 static int under(int x, int y)
 {
     switch (levl[x][y].typ) {
     case CORR: return T(corr);
-    case DOOR: case LDOOR: return door(x, y);
     }
     return T(floor);
 }
@@ -61,7 +58,7 @@ static int terrain(int x, int y, int ch)
     case '.': return T(floor);
     case CORR_SYM: return T(corr);
     case '|': return T(vwall);
-    case '+': return door(x, y);
+    case '+': return T(floor);     /* doorways: Hack can't open or close doors */
     case '<': return T(up);
     case '>': return T(down);
     case POOL_SYM: return T(pool);
