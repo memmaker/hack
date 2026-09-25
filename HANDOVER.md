@@ -97,3 +97,12 @@
   guard; selection-page card + gold tree link (Hack node, 1982 Fenlason /
   1.0.3 1985 Brouwer, per restoHack README); RVIP.md O-Hack section;
   rogue2wasm.md table row. Next: stage 9 shrine (`shrine/hack.html`).
+- Stage 9 (shrine) done: https://ruzzoli.de/roguelikes/shrine/hack.html
+  (Info button, tree ✦, game title link live). Manual: hack(6) + help as
+  text. No walkthrough exists (rules of thumb + NetHackWiki/RogueBasin).
+  - Bugs found while taking screenshots, fixed + deployed: item labels
+    changed after every restore (upstream restnames used the new process's
+    shuffle; save format 3 stores it as indices, v2 saves still load);
+    "<corrupted>" item names in wasm (safe_strcat rejected addresses
+    < 0x1000). Docs: Amulet is on level 30+, levels are kept.
+  - Hack is complete. Next game in RVIP-todo.md: NetHack 1.3d.
