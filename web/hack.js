@@ -36,7 +36,7 @@
 	 * window, scrolled to keep the hero in view; row 0 plus the message
 	 * history in Messages, row 23 in Status, text over the map in a pop-up. */
 	var ROWS = MAP1 - MAP0 + 1, GUT = 6, TITLE = 22, log = [], hero = { y: 0, x: 0, lev: -1 }, off = { x: 0, y: 0 };
-	var split = 0.75, font = 13;
+	var split = 0.75, side = 0.6, font = 13;
 	function esc(t) { return t.replace(/[&<>]/g, function (c) { return '&' + (c === '&' ? 'amp' : c === '<' ? 'lt' : 'gt') + ';'; }); }
 	/* screen row y, columns x0..x1 as HTML (standout, cursor) */
 	function rowHtml(y, x0, x1, cursor) {
@@ -127,10 +127,12 @@
 	function layout() {
 		var g = $('game'), W = g.clientWidth, H = g.clientHeight, lh = Math.ceil(font * 1.4);
 		var sh = TITLE + lh + 8, yb = Math.max(80, Math.min(H - sh - 60, Math.round(H * split)));
-		rects = { map: [0, 0, W, yb - GUT / 2], msg: [0, yb + GUT / 2, W, H - yb - GUT - sh], stat: [0, H - sh, W, sh] };
-		place('t-map', rects.map); place('t-msg', rects.msg); place('t-stat', rects.stat);
-		place('split', [0, yb - GUT / 2, W, GUT]);
-		['msg', 'stat', 'pop'].forEach(function (id) { $(id).style.fontSize = font + 'px'; });
+		var xs = Math.max(120, Math.min(W - 120, Math.round(W * side)));
+		rects = { map: [0, 0, W, yb - GUT / 2], msg: [0, yb + GUT / 2, xs - GUT / 2, H - yb - GUT - sh], stat: [0, H - sh, xs - GUT / 2, sh],
+			inv: [xs + GUT / 2, yb + GUT / 2, W - xs - GUT / 2, H - yb - GUT / 2] };
+		place('t-map', rects.map); place('t-msg', rects.msg); place('t-stat', rects.stat); place('t-inv', rects.inv);
+		place('split', [0, yb - GUT / 2, W, GUT]); place('split-side', [xs - GUT / 2, yb + GUT / 2, GUT, H - yb - GUT / 2]);
+		['msg', 'stat', 'inv', 'pop'].forEach(function (id) { $(id).style.fontSize = font + 'px'; });
 		scrollMap(true); draw();
 	}
 	function zoom(d) {
@@ -141,15 +143,19 @@
 	}
 	function zoomText(d) { font = Math.max(8, Math.min(28, font + d)); store('hack-font', font); layout(); }
 	function resetLayout() {
-		auto = true; split = 0.75; font = 13;
-		['hack-cell', 'hack-split', 'hack-font'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { } });
+		auto = true; split = 0.75; side = 0.6; font = 13;
+		['hack-cell', 'hack-split', 'hack-side', 'hack-font'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { } });
 		cell = fit(); measure(); layout();
 	}
 	function drag(e) {
-		var el = $('split'), g = $('game').getBoundingClientRect();
+		var el = e.currentTarget, v = el.id === 'split-side', g = $('game').getBoundingClientRect();
 		el.setPointerCapture(e.pointerId); el.classList.add('drag');
-		el.onpointermove = function (ev) { split = Math.max(0.2, Math.min(0.9, (ev.clientY - g.top) / g.height)); layout(); };
-		el.onpointerup = function () { el.classList.remove('drag'); el.onpointermove = el.onpointerup = null; store('hack-split', split); };
+		el.onpointermove = function (ev) {
+			if (v) side = Math.max(0.2, Math.min(0.9, (ev.clientX - g.left) / g.width));
+			else split = Math.max(0.2, Math.min(0.9, (ev.clientY - g.top) / g.height));
+			layout();
+		};
+		el.onpointerup = function () { el.classList.remove('drag'); el.onpointermove = el.onpointerup = null; store('hack-split', split); store('hack-side', side); };
 		e.preventDefault();
 	}
 	function setTiles(s) {
@@ -175,6 +181,7 @@
 			if (moved || lv) scrollMap(lv);
 			draw();
 		},
+		inv: function (t) { if (t !== hk.lastInv) { hk.lastInv = t; $('inv').textContent = t; } },
 		msg: function (t) {
 			t = t.replace(/\s*\n\s*/g, ' ').trim();
 			if (t && t !== log[log.length - 1]) { log.push(t); if (log.length > 200) log.shift(); }
@@ -350,6 +357,8 @@
 		var c = +store('hack-cell');
 		if (c >= 8 && c <= 64) { cell = c; auto = false; }
 		if (+store('hack-split') > 0) split = +store('hack-split');
+		if (+store('hack-side') > 0) side = +store('hack-side');
+		$('split-side').addEventListener('pointerdown', drag);
 		if (+store('hack-font') >= 8) font = +store('hack-font');
 		$('btn-layout').onclick = resetLayout;
 		$('split').addEventListener('pointerdown', drag);

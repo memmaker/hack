@@ -13,6 +13,7 @@ extern char SAVEF[];
 void rl_autosave(void);
 
 EM_JS(void, js_frame, (unsigned *scr, int *cell, int y0, int y1, int x0, int x1, int hy, int hx, int lev), { Module.hk.frame(scr, cell, y0, y1, x0, x1, hy, hx, lev); });
+EM_JS(void, js_inv, (const char *s), { Module.hk.inv(UTF8ToString(s)); });
 EM_JS(void, be_msg, (const char *s), { Module.hk.msg(UTF8ToString(s)); });
 EM_JS(void, js_cursor, (int y, int x), { Module.hk.cursor(y, x); });
 EM_JS(int, js_key, (void), { return Module.hk.key(); });
@@ -38,6 +39,14 @@ void be_frame(chtype s[][80])
 {
     int b[4];
     vt_map(s, b, cell);
+    {   /* Inventory window: "a - item" per line */
+        static char inv[52 * 90];
+        char *p = inv;
+        *p = 0;
+        for (struct obj *o = invent; o; o = o->nobj)
+            p += snprintf(p, inv + sizeof inv - p, "%c - %.80s\n", o->invlet, doname(o));
+        js_inv(inv);
+    }
     js_frame(&s[0][0], &cells[0][0], b[0], b[1], b[2], b[3], u.uy + MAP0, u.ux, dlevel);
 }
 void be_cursor(int y, int x) { js_cursor(y, x); }
