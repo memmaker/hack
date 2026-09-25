@@ -1,7 +1,7 @@
 /*
  * Hack in the browser: draws the screen port/be_web.c sends (Module.hk):
- * text rows 0 and 23, the map rows as 16x16 tiles (DawnLike or NetHack,
- * switchable), text over the map in a box, as the X11 version does.
+ * the map rows as 16x16 tiles (DawnLike or NetHack, switchable) in a map
+ * window, messages and status in text windows, text over the map in a pop-up.
  * Keyboard, saves in IndexedDB (IDBFS, /hack). Loaded before hack-core.js.
  * Structure copied from ~/Games/omega/web/omega.js.
  */
@@ -20,7 +20,7 @@
 	var events = [], running = false, lastSave = 0;
 	var wantSaveFlag = true;   /* restoring deletes the save: write it back at the first prompt */
 	var scr = null, cells = null, box = [99, -1, 99, -1], cur = { y: 0, x: 0 };
-	var cv, ctx, cell = 18, tw = 9, th = 16, fpx = 14, auto = true;
+	var cv, ctx, cell = 18, auto = true;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 	var set = 'dawn', sheets = {};
 
@@ -32,35 +32,41 @@
 	function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { } return null; }
 
 	/* ---------- drawing ---------- */
-	function rowy(y) { return y < MAP0 ? 0 : y <= MAP1 ? th + (y - MAP0) * cell : th + (MAP1 - MAP0 + 1) * cell + (y - MAP1 - 1) * th; }
-	function metrics(c) {
-		var p = Math.min(22, Math.floor(c / 1.25));   /* a text line fits a map cell: boxes over the map fit */
-		ctx.font = p + 'px ' + FONT;
-		return { p: p, tw: Math.ceil(ctx.measureText('M').width), th: Math.ceil(p * 1.25) };
+	/* Windows (as ~/Games/rogue3.6/web): the map rows as tiles in their own
+	 * window, scrolled to keep the hero in view; row 0 plus the message
+	 * history in Messages, row 23 in Status, text over the map in a pop-up. */
+	var ROWS = MAP1 - MAP0 + 1, GUT = 6, TITLE = 22, log = [], hero = { y: 0, x: 0, lev: -1 }, off = { x: 0, y: 0 };
+	var split = 0.75, font = 13;
+	function esc(t) { return t.replace(/[&<>]/g, function (c) { return '&' + (c === '&' ? 'amp' : c === '<' ? 'lt' : 'gt') + ';'; }); }
+	/* screen row y, columns x0..x1 as HTML (standout, cursor) */
+	function rowHtml(y, x0, x1, cursor) {
+		var h = '', so = false, x, v, c, on;
+		for (x = x0; x <= x1; x++) {
+			v = scr[y * 80 + x]; c = String.fromCharCode((v & 255) || 32);
+			on = !!(v & A_STANDOUT) !== (cursor && cur.y === y && cur.x === x);
+			if (on !== so) { h += on ? '<span class="so">' : '</span>'; so = on; }
+			h += esc(c);
+		}
+		return (so ? h + '</span>' : h).replace(/\s+$/, '');
 	}
 	function measure() {
-		var m = metrics(cell);
-		fpx = m.p; tw = m.tw; th = m.th;
-		var w = 80 * cell, h = rowy(24);
+		var w = 80 * cell, h = ROWS * cell;
 		cv.width = w * dpr; cv.height = h * dpr;
 		cv.style.width = w + 'px'; cv.style.height = h + 'px';
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.imageSmoothingEnabled = false;     /* nearest-neighbour tiles */
 		ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
 	}
-	function fit() {
+	function fit() {       /* biggest cell that shows the whole map in its window */
 		var g = $('game'), best = 8;
-		for (var c = 8; c <= 64; c++) {
-			var m = metrics(c);
-			if (80 * c <= g.clientWidth && 22 * c + 2 * m.th <= g.clientHeight) best = c;
-		}
+		for (var c = 8; c <= 64; c++) if (80 * c + 2 <= g.clientWidth && ROWS * c + 2 <= g.clientHeight * split) best = c;
 		return best;
 	}
-	function glyph(c, px, py, w, h, inv, size) {
-		ctx.fillStyle = inv ? FG : '#000'; ctx.fillRect(px, py, w, h);
+	function glyph(c, px, py, w, h, size) {
+		ctx.fillStyle = '#000'; ctx.fillRect(px, py, w, h);
 		if (c <= 32) return;
-		ctx.font = size + 'px ' + FONT;
-		ctx.fillStyle = inv ? '#000' : FG;
+		ctx.font = 'bold ' + size + 'px ' + FONT;
+		ctx.fillStyle = FG;
 		ctx.fillText(String.fromCharCode(c), px + w / 2, py + h / 2 + 1);
 	}
 	function tile(t, px, py) {
@@ -69,40 +75,82 @@
 	}
 	function draw() {
 		if (!scr) return;
-		var y, x, v, k;
-		ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 80 * cell, rowy(24));
-		for (y = 0; y < 24; y++) if (y < MAP0 || y > MAP1)
-			for (x = 0; x < 80; x++) { v = scr[y * 80 + x]; glyph(v & 255, x * tw, rowy(y), tw, th, v & A_STANDOUT, fpx); }
+		var y, x, k, py, lines = [];
+		ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 80 * cell, ROWS * cell);
 		for (y = MAP0; y <= MAP1; y++)
 			for (x = 0; x < 80; x++) {
-				k = cells[y * 80 + x];
+				k = cells[y * 80 + x]; py = (y - MAP0) * cell;
 				if (k > 0) {
 					var t = k >> 12, u = (k & 0xfff) - 1;
-					if (u >= 0) tile(u, x * cell, rowy(y));
-					tile(t, x * cell, rowy(y));
-				} else if (k < 0) glyph(-2 - k, x * cell, rowy(y), cell, cell, 0, Math.round(cell * 0.78));
+					if (u >= 0) tile(u, x * cell, py);
+					tile(t, x * cell, py);
+				} else if (k < 0) glyph(-2 - k, x * cell, py, cell, cell, Math.round(cell * 0.78));
 			}
-		var inbox = box[1] >= 0 && cur.y >= MAP0 && cur.y <= MAP1;
-		if (box[1] >= 0) {     /* text over the map, one text cell of padding */
-			var bx = box[2] * cell, by = rowy(box[0]), w = (box[3] - box[2] + 3) * tw, h = (box[1] - box[0] + 1) * th + tw;
-			if (bx + w > 80 * cell) bx = 80 * cell - w;
-			ctx.fillStyle = '#000'; ctx.fillRect(bx, by, w, h);
-			ctx.strokeStyle = FG; ctx.lineWidth = 1; ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
-			for (y = box[0]; y <= box[1]; y++)
-				for (x = box[2]; x <= box[3]; x++) {
-					v = scr[y * 80 + x];
-					glyph(v & 255, bx + (x - box[2] + 1) * tw, by + tw / 2 + (y - box[0]) * th, tw, th, v & A_STANDOUT, fpx);
-				}
+		var pop = $('pop'), inbox = box[1] >= 0 && cur.y >= box[0] && cur.y <= box[1];
+		if (box[1] >= 0) {
+			for (y = box[0]; y <= box[1]; y++) lines.push(rowHtml(y, box[2], box[3], inbox));
+			pop.innerHTML = lines.join('\n');
+			pop.hidden = false;
+			var m = rects.map, pw = pop.offsetWidth;
+			pop.style.left = Math.max(m[0], Math.min(m[0] + m[2] - pw, m[0] + box[2] * cell - off.x)) + 'px';
+			pop.style.top = m[1] + 'px';
+		} else pop.hidden = true;
+		if (cur.y >= MAP0 && cur.y <= MAP1 && !inbox) {
+			ctx.strokeStyle = FG; ctx.lineWidth = 1;
+			ctx.strokeRect(cur.x * cell + 0.5, (cur.y - MAP0) * cell + 0.5, cell - 1, cell - 1);
 		}
-		ctx.fillStyle = FG; ctx.strokeStyle = FG;
-		if (cur.y < MAP0 || cur.y > MAP1) ctx.fillRect(cur.x * tw, rowy(cur.y) + th - 2, tw, 2);
-		else if (!inbox) ctx.strokeRect(cur.x * cell + 0.5, rowy(cur.y) + 0.5, cell - 1, cell - 1);
+		/* messages: history (dim), then the live top line with the cursor */
+		var ml = $('msg'), body = ml.parentNode, atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+		ml.innerHTML = log.map(function (t) { return '<span class="old">' + esc(t) + '</span>'; }).join('\n') +
+			(log.length ? '\n' : '') + rowHtml(0, 0, 79, true);
+		if (atEnd) body.scrollTop = body.scrollHeight;
+		$('stat').innerHTML = rowHtml(23, 0, 79, true);
+		scrollMap(false);
+	}
+	/* keep the hero in the middle half of the map window; recentre when it leaves it */
+	function scrollMap(force) {
+		var b = $('map'), vw = b.clientWidth, vh = b.clientHeight;
+		[['x', hero.x * cell, 80 * cell, vw], ['y', (hero.y - MAP0) * cell, ROWS * cell, vh]].forEach(function (a) {
+			var c = a[1] + cell / 2 - off[a[0]];
+			if (a[2] <= a[3]) off[a[0]] = -Math.floor((a[3] - a[2]) / 2);      /* fits: centre it */
+			else if (force || c < a[3] / 4 || c > a[3] * 3 / 4) off[a[0]] = Math.max(0, Math.min(a[2] - a[3], Math.round(a[1] + cell / 2 - a[3] / 2)));
+		});
+		cv.style.marginLeft = -off.x + 'px';
+		cv.style.marginTop = -off.y + 'px';
+	}
+	var rects = {};
+	function place(id, r) {
+		var el = $(id);
+		el.style.left = r[0] + 'px'; el.style.top = r[1] + 'px';
+		el.style.width = Math.max(0, r[2]) + 'px'; el.style.height = Math.max(0, r[3]) + 'px';
+	}
+	function layout() {
+		var g = $('game'), W = g.clientWidth, H = g.clientHeight, lh = Math.ceil(font * 1.4);
+		var sh = TITLE + lh + 8, yb = Math.max(80, Math.min(H - sh - 60, Math.round(H * split)));
+		rects = { map: [0, 0, W, yb - GUT / 2], msg: [0, yb + GUT / 2, W, H - yb - GUT - sh], stat: [0, H - sh, W, sh] };
+		place('t-map', rects.map); place('t-msg', rects.msg); place('t-stat', rects.stat);
+		place('split', [0, yb - GUT / 2, W, GUT]);
+		['msg', 'stat', 'pop'].forEach(function (id) { $(id).style.fontSize = font + 'px'; });
+		scrollMap(true); draw();
 	}
 	function zoom(d) {
 		auto = false;
 		cell = Math.max(8, Math.min(64, cell + d));
 		store('hack-cell', cell);
-		measure(); draw();
+		measure(); scrollMap(true); draw();
+	}
+	function zoomText(d) { font = Math.max(8, Math.min(28, font + d)); store('hack-font', font); layout(); }
+	function resetLayout() {
+		auto = true; split = 0.75; font = 13;
+		['hack-cell', 'hack-split', 'hack-font'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { } });
+		cell = fit(); measure(); layout();
+	}
+	function drag(e) {
+		var el = $('split'), g = $('game').getBoundingClientRect();
+		el.setPointerCapture(e.pointerId); el.classList.add('drag');
+		el.onpointermove = function (ev) { split = Math.max(0.2, Math.min(0.9, (ev.clientY - g.top) / g.height)); layout(); };
+		el.onpointerup = function () { el.classList.remove('drag'); el.onpointermove = el.onpointerup = null; store('hack-split', split); };
+		e.preventDefault();
 	}
 	function setTiles(s) {
 		set = SETS[s] ? s : 'dawn';
@@ -113,16 +161,23 @@
 	}
 
 	var hk = {
-		frame: function (sp, cp, y0, y1, x0, x1) {
+		frame: function (sp, cp, y0, y1, x0, x1, hy, hx, lev) {
 			scr = Module.HEAPU32.slice(sp >> 2, (sp >> 2) + 1920);
 			cells = Module.HEAP32.slice(cp >> 2, (cp >> 2) + 1920);
 			box = [y0, y1, x0, x1];
 			if ($('game').hidden) {
 				$('game').hidden = false;
-				measure();
-				if (auto) { cell = fit(); measure(); }
+				if (auto) cell = fit();
+				measure(); layout();
 			}
+			var moved = hy !== hero.y || hx !== hero.x, lv = lev !== hero.lev;
+			hero.y = hy; hero.x = hx; hero.lev = lev;
+			if (moved || lv) scrollMap(lv);
 			draw();
+		},
+		msg: function (t) {
+			t = t.replace(/\s*\n\s*/g, ' ').trim();
+			if (t && t !== log[log.length - 1]) { log.push(t); if (log.length > 200) log.shift(); }
 		},
 		cursor: function (y, x) { cur.y = y; cur.x = x; draw(); },
 		key: function () { return events.length ? events.shift() : -1; },
@@ -287,13 +342,19 @@
 	});
 	document.addEventListener('visibilitychange', function () { if (document.hidden) wantSaveFlag = true; });
 
-	window.addEventListener('resize', function () { if (auto && scr) { cell = fit(); measure(); draw(); } });
+	window.addEventListener('resize', function () { if (!scr) return; if (auto) { cell = fit(); measure(); } layout(); });
 	document.addEventListener('keydown', onKey);
 	document.addEventListener('DOMContentLoaded', function () {
 		cv = document.querySelector('#game canvas');
 		ctx = cv.getContext('2d');
 		var c = +store('hack-cell');
 		if (c >= 8 && c <= 64) { cell = c; auto = false; }
+		if (+store('hack-split') > 0) split = +store('hack-split');
+		if (+store('hack-font') >= 8) font = +store('hack-font');
+		$('btn-layout').onclick = resetLayout;
+		$('split').addEventListener('pointerdown', drag);
+		document.querySelector('#t-msg .zin').onclick = function () { zoomText(1); };
+		document.querySelector('#t-msg .zout').onclick = function () { zoomText(-1); };
 		setTiles(store('hack-tileset'));
 		$('btn-tiles').onclick = function () { setTiles(set === 'dawn' ? 'nethack' : 'dawn'); };
 		$('btn-export').onclick = exportSave;

@@ -25,9 +25,24 @@
 		background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; max-width: 90vw; }
 	#status.error { border-color: #b44; color: #f99; }
 
-		#game { position: absolute; left: 0; right: 0; top: 32px; bottom: 0; overflow: auto; background: #000;
-		display: flex; align-items: flex-start; justify-content: center; }
-	#game canvas { display: block; }
+	/* windows: map on top, messages and status below (placed by hack.js) */
+	#game { position: absolute; left: 0; right: 0; top: 32px; bottom: 0; overflow: hidden; background: var(--gut); }
+	.win { position: absolute; background: #000; border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
+	.win > .t { flex: none; display: flex; align-items: center; font-size: 11px; height: 20px; padding: 0 2px 0 6px;
+		color: var(--dim); background: var(--panel); border-bottom: 1px solid var(--line); }
+	.win > .t .name { flex: 1; }
+	.win > .t button { padding: 0 5px; font-size: 11px; line-height: 14px; height: 16px; margin-left: 2px; }
+	.win > .body { flex: 1; min-height: 0; overflow: hidden; }
+	#t-msg .body { overflow-y: auto; }
+	.txt { margin: 0; padding: 2px 6px; color: #d7d7d7; font-family: "DejaVu Sans Mono", Menlo, Consolas, monospace; white-space: pre-wrap; }
+	.txt .old { color: var(--dim); }
+	.so { background: #d7d7d7; color: #000; }
+	#map canvas { display: block; }
+	#pop { position: absolute; z-index: 3; background: #000; border: 1px solid var(--dim); box-shadow: 0 6px 24px rgba(0,0,0,.7);
+		max-height: 100%; overflow: auto; }
+	#pop[hidden] { display: none; }
+	.split { position: absolute; background: var(--gut); z-index: 2; cursor: row-resize; touch-action: none; }
+	.split:hover, .split.drag { background: var(--gut-hover); }
 	#overlay, #help { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex;
 		align-items: center; justify-content: center; z-index: 10; }
 	#overlay[hidden], #help[hidden], #status[hidden], #game[hidden] { display: none; }
@@ -71,6 +86,7 @@
 	<button id="btn-tiles" title="Switch the tile set">Tiles</button>
 	<button id="btn-zoom-out" title="Smaller map">Zoom −</button>
 	<button id="btn-zoom-in" title="Bigger map">Zoom +</button>
+	<button id="btn-layout" title="Put the windows back where they started">Reset windows</button>
 	<span class="sep"></span>
 	<button id="btn-export" title="Download the save file">Export save</button>
 	<button id="btn-import" title="Load a save file from disk">Import save</button>
@@ -82,7 +98,13 @@
 
 <div id="status">Loading Hack…</div>
 
-<div id="game" hidden><canvas></canvas></div>
+<div id="game" hidden>
+	<div class="win" id="t-map"><div class="body" id="map"><canvas></canvas></div></div>
+	<div class="win" id="t-msg"><div class="t"><span class="name">Messages</span><button class="zout" title="Smaller text">A−</button><button class="zin" title="Bigger text">A+</button></div><div class="body"><pre class="txt" id="msg"></pre></div></div>
+	<div class="win" id="t-stat"><div class="t"><span class="name">Status</span></div><div class="body"><pre class="txt" id="stat"></pre></div></div>
+	<div class="split" id="split" title="Drag to resize"></div>
+	<pre class="txt" id="pop" hidden></pre>
+</div>
 
 <div id="help" hidden>
 	<div class="panel" role="dialog" aria-label="Hack guide">

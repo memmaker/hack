@@ -5,13 +5,15 @@
 #include <emscripten.h>
 #include <stdio.h>
 #include <unistd.h>
+#include "hack.h"
 #include "vt.h"
 
 extern int rl_at_prompt, rl_saved;
 extern char SAVEF[];
 void rl_autosave(void);
 
-EM_JS(void, js_frame, (unsigned *scr, int *cell, int y0, int y1, int x0, int x1), { Module.hk.frame(scr, cell, y0, y1, x0, x1); });
+EM_JS(void, js_frame, (unsigned *scr, int *cell, int y0, int y1, int x0, int x1, int hy, int hx, int lev), { Module.hk.frame(scr, cell, y0, y1, x0, x1, hy, hx, lev); });
+EM_JS(void, be_msg, (const char *s), { Module.hk.msg(UTF8ToString(s)); });
 EM_JS(void, js_cursor, (int y, int x), { Module.hk.cursor(y, x); });
 EM_JS(int, js_key, (void), { return Module.hk.key(); });
 EM_JS(int, js_want_save, (void), { return Module.hk.wantSave(); });
@@ -36,7 +38,7 @@ void be_frame(chtype s[][80])
 {
     int b[4];
     vt_map(s, b, cell);
-    js_frame(&s[0][0], &cells[0][0], b[0], b[1], b[2], b[3]);
+    js_frame(&s[0][0], &cells[0][0], b[0], b[1], b[2], b[3], u.uy + MAP0, u.ux, dlevel);
 }
 void be_cursor(int y, int x) { js_cursor(y, x); }
 void be_flush(void) { }
