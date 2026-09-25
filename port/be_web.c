@@ -32,7 +32,7 @@ static const char *css(int olet)
 }
 EM_JS(void, js_inv, (const char *s), { Module.hk.inv(UTF8ToString(s)); });
 EM_JS(void, js_vis, (const char *s), { Module.hk.vis(UTF8ToString(s)); });
-EM_JS(void, be_msg, (const char *s), { Module.hk.msg(UTF8ToString(s)); });
+EM_JS(void, be_msg, (const char *s, int fold), { Module.hk.msg(UTF8ToString(s), fold); });
 EM_JS(void, js_cursor, (int y, int x), { Module.hk.cursor(y, x); });
 EM_JS(int, js_key, (void), { return Module.hk.key(); });
 EM_JS(int, js_want_save, (void), { return Module.hk.wantSave(); });

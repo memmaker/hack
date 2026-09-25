@@ -187,9 +187,12 @@
 			}).join('\n');
 		},
 		vis: function (s) { RvipWM.visible($('vis'), s); },
-		msg: function (t) {
+		/* fold: the game folded a repeat into "message (xN)", replacing the last line */
+		msg: function (t, fold) {
 			t = t.replace(/\s*\n\s*/g, ' ').trim();
-			if (t && t !== log[log.length - 1]) { log.push(t); if (log.length > 200) log.shift(); }
+			if (!t) return;
+			if (fold && log.length) log[log.length - 1] = t;
+			else { log.push(t); if (log.length > 200) log.shift(); }
 		},
 		cursor: function (y, x) { cur.y = y; cur.x = x; draw(); },
 		key: function () { return events.length ? events.shift() : -1; },

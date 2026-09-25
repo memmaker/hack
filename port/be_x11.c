@@ -168,7 +168,7 @@ void be_frame(chtype s[][80])
     }
 }
 
-void be_msg(const char *s) { }
+void be_msg(const char *s, int fold) { }
 void be_cursor(int y, int x) { cy = y; cx = x; }
 
 void be_flush(void)
