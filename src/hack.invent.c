@@ -322,7 +322,14 @@ struct obj *getobj(const char *let, const char *word) {
   boolean allownone = FALSE;
   xchar foox = 0;
   long cnt;
+  extern struct obj *rl_obj;
+  extern int rl_pick(const char *);
 
+  if (rl_obj) { /* RVIP: chosen in the inventory menu */
+    otmp = rl_obj;
+    rl_obj = 0;
+    return (otmp);
+  }
   if (*let == '0')
     let++, allowcnt = 1;
   if (*let == '$')
@@ -389,7 +396,7 @@ struct obj *getobj(const char *let, const char *word) {
       pline("What do you want to %s [%s or ?*]? ", word, buf);
 
     cnt = 0;
-    ilet = readchar();
+    ilet = rl_pick(lets); /* RVIP: cursor list */
     while (digit(ilet) && allowcnt) {
       if (cnt < 100000000)
         cnt = 10 * cnt + (ilet - '0');

@@ -12,3 +12,9 @@ int be_getkey(int wait);
 void be_sleep(int ms);
 void be_end(void);
 extern int vt_msgs;   /* printable chars written on the message line */
+extern int be_menu;    /* set while a menu reads keys: arrows -> BE_* */
+enum { BE_UP = 0x101, BE_DOWN, BE_LEFT, BE_RIGHT };
+void vt_push(const char *keys);
+int vt_queued(void);                  /* keys the game reads next */
+int vt_menu(const char **item, int n, int cur);  /* box; returns cursor, key in vt_menukey */
+extern int vt_menukey;                           /* key that ended vt_menu */

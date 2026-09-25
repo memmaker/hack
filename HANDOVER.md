@@ -2,7 +2,22 @@
 
 ## RVIP progress
 - Stage 1 done (2026-09-25).
-- Stage 2 done (2026-09-25). Next: stage 3 (Enter menu + inventory).
+- Stage 3 done (2026-09-25). Next: stage 4 (tiles).
+  - All in `port/rl.c` (+ `vt_menu`/`vt_push` in `port/vt.c`). Enter menu
+    `cmd_menu()` parses the `Commands:` lines of `help` ("\t<key>\t<text>",
+    `^X` = Ctrl); chosen key is returned from `rl_parse` as the command.
+  - `i` = `inv_menu()`, item menu `item_menu()`, action `act()`: sets
+    `rl_obj` (getobj() in src/hack.invent.c returns it once, cleared at the
+    next `rl_parse`), `R` with two rings queues l/r via `vt_push`. List
+    reopens (`reopen`) unless `threat()`. Item prompts: getobj's first
+    `readchar()` → `rl_pick(lets)` (cursor list, skipped when keys queued).
+  - `vt_menu(items,n,cur)`: box sized to content, scrolls past 22 rows,
+    returns cursor, key in `vt_menukey`; `be_menu` makes arrows BE_UP..
+    so j/k stay item letters. Numpad 8/2/5/+/-/*/0/4/6.
+  - Ceilings: Shift+letter drop only for a–z; counts in "d7a" lose 2/5/8
+    (numpad keys) at the list; no floor/equipment lists (Hack has none).
+  - Tested live + 500 random keys under ASan: clean.
+- Stage 2 done (2026-09-25).
   - `port/rl.c`: `x` = explore, `<`/`>` off stairs walk to the known ones.
     Hook: `rhack()` (src/hack.cmd.c) calls `rl_parse()` instead of `parse()`;
     `rl_parse` returns one step key per turn while a mode runs.

@@ -82,12 +82,19 @@ void be_flush(void)
     XFlush(dpy);
 }
 
+int be_menu;
 static int keycode(XKeyEvent *ev)
 {
     char buf[8];
     KeySym ks;
     int n = XLookupString(ev, buf, sizeof buf, &ks, NULL);
-    switch (ks) {       
+    if (be_menu) switch (ks) {   /* menus: arrows must not look like item letters */
+    case XK_Up: case XK_KP_Up: return BE_UP;
+    case XK_Down: case XK_KP_Down: return BE_DOWN;
+    case XK_Left: case XK_KP_Left: return BE_LEFT;
+    case XK_Right: case XK_KP_Right: return BE_RIGHT;
+    }
+    switch (ks) {
     /* arrows = keypad digits: Hack moves with hjkl, so send those */
     case XK_Left: case XK_KP_Left: return 'h';
     case XK_Right: case XK_KP_Right: return 'l';

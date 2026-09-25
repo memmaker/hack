@@ -66,9 +66,57 @@ static void present(void)
 
 static int out(void *c, const char *b, int n) { for (int i = 0; i < n; i++) put((unsigned char)b[i]); return n; }
 
+static char queue[64];
+
+int vt_queued(void) { return *queue; }
+void vt_push(const char *k) { strncat(queue, k, sizeof queue - strlen(queue) - 1); }
+
+/* Pop-up box sized to its items over the screen, cursor on item cur.
+ * Up/down/8/2 move, any other key returns the cursor index and leaves
+ * the key in vt_menukey. */
+int vt_menukey;
+int vt_menu(const char **item, int n, int cur)
+{
+    int w = 0, h = n < ROWS - 2 ? n : ROWS - 2, top = 0, y0, x0, k;
+    chtype save[ROWS][COLS];
+
+    for (int i = 0; i < n; i++) if ((int)strlen(item[i]) > w) w = strlen(item[i]);
+    if (w > COLS - 4) w = COLS - 4;
+    y0 = (ROWS - h - 2) / 2, x0 = (COLS - w - 4) / 2;
+    fflush(stdout);
+    memcpy(save, scr, sizeof scr);
+    be_menu = 1;
+    for (;;) {
+        if (cur < top) top = cur;
+        if (cur >= top + h) top = cur - h + 1;
+        for (int y = 0; y < h + 2; y++)
+            for (int x = 0; x < w + 4; x++) {
+                int c = y == 0 || y == h + 1 ? (x == 0 || x == w + 3 ? '+' : '-') : x == 0 || x == w + 3 ? '|' : ' ';
+                const char *t = y && y <= h ? item[top + y - 1] : "";
+                if (y && y <= h && x >= 2 && x - 2 < (int)strlen(t) && x - 2 < w) c = (unsigned char)t[x - 2];
+                scr[y0 + y][x0 + x] = c | (y && y <= h && top + y - 1 == cur && x && x < w + 3 ? A_STANDOUT : 0);
+            }
+        if (top) scr[y0][x0 + w + 2] = '^';
+        if (top + h < n) scr[y0 + h + 1][x0 + w + 2] = 'v';
+        present();
+        be_cursor(y0 + 1 + cur - top, x0 + 1);
+        be_flush();
+        while ((k = be_getkey(1)) < 0) ;
+        if (k == BE_UP || k == '8') cur = (cur + n - 1) % n;
+        else if (k == BE_DOWN || k == '2') cur = (cur + 1) % n;
+        else break;
+    }
+    be_menu = 0;
+    memcpy(scr, save, sizeof scr);
+    present();
+    vt_menukey = k;
+    return cur;
+}
+
 static int in(void *c, char *b, int n)
 {
     int k;
+    if (*queue) { b[0] = queue[0]; memmove(queue, queue + 1, strlen(queue)); return 1; }
     fflush(stdout);
     present();
     while ((k = be_getkey(1)) < 0) ;

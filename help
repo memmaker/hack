@@ -56,7 +56,11 @@ Commands:
 		interesting is found.
 	F	(followed by one of KJHLYUBN): as previous, but forking
 		of corridors is not considered interesting.
-	i	print your inventory.
+	i	inventory with a cursor: letter = main action (eat, quaff,
+		read, zap, wear, ...), Shift+letter = drop, Ctrl+letter =
+		examine, Enter = menu of the item's actions.
+		Item prompts show the same list; choose with Enter.
+	Enter	menu of all commands.
 	I	print selected parts of your inventory, like in
 		I* - print all gems in inventory;
 		IU - print all unpaid items;

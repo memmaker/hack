@@ -26,7 +26,8 @@ a	apply, use  use something (a key, camera, etc.)
 c	call	give a name to a class of objects
 d	drop	drop an object. d7a: drop seven items of object a.
 e	eat	eat something
-i	invent	list the inventory (all objects you are carrying)
+i	invent	inventory with a cursor: letter = use, Shift+letter = drop,
+		Ctrl+letter = examine, Enter = item menu
 I	invent	list selected parts of the inventory
 		IU: list unpaid objects
 		IX: list unpaid but used up items
@@ -48,6 +49,7 @@ W	wear	put on some armor
 <	up	go up (walk to the stairs)
 >	down	go down (walk to the stairs)
 x	explore	walk until something happens
+Enter	menu	menu of all commands
 ^	trap_id	identify a previously found trap
 ),[,=		ask for current weapon, armor, rings, respectively
 $	gold	count your gold
