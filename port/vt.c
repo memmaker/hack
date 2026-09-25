@@ -8,7 +8,7 @@
 
 #define COLS 80
 #define ROWS 24
-static chtype scr[ROWS][COLS], shown[ROWS][COLS];
+static chtype scr[ROWS][COLS];
 int vt_msgs;
 static int cy, cx, so, esc, np, par[4];
 
@@ -39,7 +39,8 @@ static void put(int c)
     switch (c) {
     case 033: esc = 1; return;
     case '\r': cx = 0; break;
-    case '\n': if (cy < ROWS - 1) cy++; else { memmove(scr, scr[1], sizeof scr[0] * (ROWS - 1)); for (int x = 0; x < COLS; x++) scr[ROWS - 1][x] = ' '; } break;
+    case '\n': cx = 0;   /* tty ONLCR: newline is CR LF */
+        if (cy < ROWS - 1) cy++; else { memmove(scr, scr[1], sizeof scr[0] * (ROWS - 1)); for (int x = 0; x < COLS; x++) scr[ROWS - 1][x] = ' '; } break;
     case '\b': if (cx) cx--; break;
     case '\t': cx = (cx + 8) & ~7; break;
     case 7: case 0: case 016: case 017: break;
@@ -57,9 +58,7 @@ clip:
 
 static void present(void)
 {
-    for (int y = 0; y < ROWS; y++)
-        for (int x = 0; x < COLS; x++)
-            if (scr[y][x] != shown[y][x]) be_put(y, x, shown[y][x] = scr[y][x]);
+    be_frame(scr);
     be_cursor(cy, cx < COLS ? cx : COLS - 1);
     be_flush();
 }
@@ -127,7 +126,7 @@ static int in(void *c, char *b, int n)
 __attribute__((constructor)) static void vt_start(void)
 {
     for (int y = 0; y < ROWS; y++)
-        for (int x = 0; x < COLS; x++) scr[y][x] = ' ', shown[y][x] = 0;
+        for (int x = 0; x < COLS; x++) scr[y][x] = ' ';
     be_init(COLS, ROWS);
     stdout = funopen(NULL, NULL, out, NULL, NULL);
     stdin = funopen(NULL, in, NULL, NULL, NULL);

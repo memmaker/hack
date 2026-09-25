@@ -2,7 +2,30 @@
 
 ## RVIP progress
 - Stage 1 done (2026-09-25).
-- Stage 3 done (2026-09-25). Next: stage 4 (tiles).
+- Stage 4 done (2026-09-25). Next: stage 5 (launcher + shortcut). Tiles, two sets (user: both, switchable).
+  - `port/mktiles.py` reads Hack's monster/object names from the C sources
+    and writes `tiles-dawn.png/.rgba` (DawnLike by name via
+    `rvip-tools/tilesets/dawnlike_names.tsv`, NetHack for gaps) and
+    `tiles.png/.rgba` (NetHack) with one slot layout, plus `tilemap.h`
+    (`tile_key[]`: `M:`monster, `O:`object, `D:<sym><look>` unidentified
+    appearance, `C:` class, `T:` terrain, `P:` role). Credits:
+    `port/TILES-CREDITS.txt`. Platino = chameleon (DawnLike easter egg).
+  - `port/tiles.c` `tile_for()`: game state decides the tile. Expected char =
+    `levl[][].scrsym` only if `seen || new` (mklev fills scrsym early!) or a
+    displayed monster; player from `u`. Walls/corners from neighbours,
+    doors oriented (NetHack convention), traps by `ttyp`.
+  - `be_x11.c` `be_frame()` (whole screen per present): rows 0/23 text,
+    map rows 1-22 tiles (cell 18, nearest-neighbour, per-cell cache). Cells
+    where the screen differs from the game: rows with 3+ such cells incl. a
+    letter (+ adjacent border rows) form a text box in the normal font over
+    the tiles; others (rays, thrown things) are glyphs in the cell.
+  - `HACK_TILESET=nethack|dawn`, `HACK_TILES`, `HACK_CELL`, `HACK_TEXT`.
+    Sheets are read from `port/` relative to cwd (play.sh: stage 5).
+  - vt.c now does ONLCR (`\n` = CR LF): fixed help pages, --More-- wraps.
+  - Rebuilding invalidates saves ("Saved level is out of date"): upstream.
+  - Tested live both sets, help/inventory boxes, save/restore; 400 random
+    keys under ASan clean.
+- Stage 3 done (2026-09-25).
   - All in `port/rl.c` (+ `vt_menu`/`vt_push` in `port/vt.c`). Enter menu
     `cmd_menu()` parses the `Commands:` lines of `help` ("\t<key>\t<text>",
     `^X` = Ctrl); chosen key is returned from `rl_parse` as the command.

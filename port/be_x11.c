@@ -1,84 +1,215 @@
-/* X11 frontend for the curses shim: one text window (text only for now),
- * Xft font, 16 PC colours.
- * Env: HACK_XFT (font, default Menlo), HACK_TEXT (px, 18),
- * HACK_POS "x,y", HACK_LINES (rows, >= 24). */
+/* X11 frontend: one window. Screen rows 0 (messages) and 23 (status) are
+ * text; rows 1-22 are the map, tiled (square cells, nearest-neighbour,
+ * RVIP step 4). Text the game or vt_menu writes over the map goes into a
+ * box in the normal font on top of the tiles.
+ * Env: HACK_TILESET (dawn | nethack, default dawn), HACK_TILES (sheet
+ * path, overrides), HACK_CELL (map cell px, 18), HACK_XFT (font, Menlo),
+ * HACK_TEXT (text px, 14), HACK_POS "x,y". */
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <X11/Xft/Xft.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "vt.h"
 #include <time.h>
 
+#define MAP0 1          /* first map row */
+#define MAP1 22         /* last map row */
 static Display *dpy;
 static Window win;
 static Pixmap pix;
 static GC gc;
 static XftDraw *xd;
-static XftFont *fnt;
-static XftColor col[16];
-static int cols, rows, tw, th, cy, cx;
+static XftFont *fnt, *mapfnt;
+static XftColor xfg, xbg;
+static unsigned long fg, bg;
+static int cols, rows, tw, th, cell = 18, cy, cx;
+static unsigned char *sheet;
+static int sheet_w, sheet_h;
+static XImage *img;
+static int drawn[24][80];    /* what each map cell shows now (tile/glyph key) */
+static int bx0, by0, bx1, by1 = -1;   /* text box over the map, in screen cells */
 
-static const unsigned char pal[16][3] = {
-    {0,0,0}, {0,0,170}, {0,170,0}, {0,170,170}, {170,0,0}, {170,0,170}, {170,85,0}, {170,170,170},
-    {85,85,85}, {85,85,255}, {85,255,85}, {85,255,255}, {255,85,85}, {255,85,255}, {255,255,85}, {255,255,255}};
+static int rowy(int y) { return y < MAP0 ? 0 : y <= MAP1 ? th + (y - MAP0) * cell : th + (MAP1 - MAP0 + 1) * cell + (y - MAP1 - 1) * th; }
+
+static void load_sheet(void)
+{
+    const char *p = getenv("HACK_TILES"), *s = getenv("HACK_TILESET");
+    FILE *f = fopen(p ? p : s && !strcmp(s, "nethack") ? "port/tiles.rgba" : "port/tiles-dawn.rgba", "rb");
+    unsigned char h[8];
+    if (!f || fread(h, 1, 8, f) != 8) { if (f) fclose(f); return; }
+    sheet_w = h[0] | h[1] << 8 | h[2] << 16 | h[3] << 24;
+    sheet_h = h[4] | h[5] << 8 | h[6] << 16 | h[7] << 24;
+    sheet = malloc((size_t)sheet_w * sheet_h * 4);
+    if (fread(sheet, 4, (size_t)sheet_w * sheet_h, f) != (size_t)sheet_w * sheet_h) { free(sheet); sheet = NULL; }
+    fclose(f);
+}
+
+static XftFont *font(double px, double stretch)
+{
+    const char *fam = getenv("HACK_XFT");
+    FcMatrix m;
+    FcMatrixInit(&m);
+    m.xx = stretch;
+    return XftFontOpen(dpy, DefaultScreen(dpy), XFT_FAMILY, XftTypeString, fam ? fam : "Menlo",
+                       XFT_PIXEL_SIZE, XftTypeDouble, px, XFT_MATRIX, XftTypeMatrix, &m, NULL);
+}
+
+static unsigned long rgb(int r, int g, int b)
+{
+    XColor c = { 0, r * 257, g * 257, b * 257, 0, 0 };
+    XAllocColor(dpy, DefaultColormap(dpy, DefaultScreen(dpy)), &c);
+    return c.pixel;
+}
 
 void be_init(int c, int r)
 {
     XSizeHints h;
     XGlyphInfo gi;
+    XRenderColor c1 = { 0xd7d7, 0xd7d7, 0xd7d7, 0xffff }, c0 = { 0, 0, 0, 0xffff };
     const char *e;
-    int scr, i, x = 0, y = 0;
+    int scr, x = 0, y = 0, w, ht;
     Visual *vis;
     Colormap cm;
 
     if (!(dpy = XOpenDisplay(NULL))) { fprintf(stderr, "hack: no X display\n"); exit(1); }
     scr = DefaultScreen(dpy); vis = DefaultVisual(dpy, scr); cm = DefaultColormap(dpy, scr);
-    fnt = XftFontOpen(dpy, scr, XFT_FAMILY, XftTypeString, (e = getenv("HACK_XFT")) ? e : "Menlo",
-                      XFT_PIXEL_SIZE, XftTypeDouble, (e = getenv("HACK_TEXT")) ? atof(e) : 18.0, NULL);
+    if ((e = getenv("HACK_CELL"))) cell = atoi(e);
+    fnt = font((e = getenv("HACK_TEXT")) ? atof(e) : 14.0, 1);
     XftTextExtents8(dpy, fnt, (FcChar8 *)"M", 1, &gi);
     tw = gi.xOff; th = fnt->ascent + fnt->descent;
-    for (i = 0; i < 16; i++) {
-        XRenderColor rc = { pal[i][0] * 257, pal[i][1] * 257, pal[i][2] * 257, 0xffff };
-        XftColorAllocValue(dpy, vis, cm, &rc, &col[i]);
-    }
+    mapfnt = font(cell * 0.78, 1);     /* stray glyphs on the map (rays, thrown things) */
+    XftColorAllocValue(dpy, vis, cm, &c1, &xfg);
+    XftColorAllocValue(dpy, vis, cm, &c0, &xbg);
+    fg = rgb(215, 215, 215); bg = rgb(0, 0, 0);
     cols = c; rows = r;
+    w = c * cell; ht = rowy(r);
     if ((e = getenv("HACK_POS"))) sscanf(e, "%d,%d", &x, &y);
-    win = XCreateSimpleWindow(dpy, DefaultRootWindow(dpy), x, y, c * tw, r * th, 0, 0, 0);
+    win = XCreateSimpleWindow(dpy, DefaultRootWindow(dpy), x, y, w, ht, 0, 0, 0);
     h.flags = PPosition | USPosition | PMinSize | PMaxSize;
     h.x = x; h.y = y;
-    h.min_width = h.max_width = c * tw;
-    h.min_height = h.max_height = r * th;
+    h.min_width = h.max_width = w;
+    h.min_height = h.max_height = ht;
     XSetWMNormalHints(dpy, win, &h);
     XStoreName(dpy, win, "Hack");
     XSelectInput(dpy, win, KeyPressMask | ExposureMask);
-    pix = XCreatePixmap(dpy, win, c * tw, r * th, DefaultDepth(dpy, scr));
+    pix = XCreatePixmap(dpy, win, w, ht, DefaultDepth(dpy, scr));
     xd = XftDrawCreate(dpy, pix, vis, cm);
     gc = XCreateGC(dpy, win, 0, NULL);
-    XftDrawRect(xd, &col[0], 0, 0, c * tw, r * th);
+    XSetForeground(dpy, gc, bg);
+    XFillRectangle(dpy, pix, gc, 0, 0, w, ht);
+    img = XCreateImage(dpy, vis, DefaultDepth(dpy, scr), ZPixmap, 0, malloc(cell * cell * 4), cell, cell, 32, 0);
+    load_sheet();
+    memset(drawn, -1, sizeof drawn);
     XMapWindow(dpy, win);
     XFlush(dpy);
 }
 
-void be_put(int y, int x, chtype ch)
+static void blend(int t, int first)
+{
+    int tx = (t % 32) * 16, ty = (t / 32) * 16;
+    for (int py = 0; py < cell; py++)
+        for (int px = 0; px < cell; px++) {
+            unsigned char *s = sheet + ((ty + py * 16 / cell) * sheet_w + tx + px * 16 / cell) * 4;   /* nearest-neighbour */
+            unsigned long o = first ? 0 : XGetPixel(img, px, py);
+            int a = s[3], r = o >> 16 & 255, g = o >> 8 & 255, b = o & 255;
+            r = (s[0] * a + r * (255 - a)) / 255;
+            g = (s[1] * a + g * (255 - a)) / 255;
+            b = (s[2] * a + b * (255 - a)) / 255;
+            XPutPixel(img, px, py, (unsigned long)r << 16 | g << 8 | b);
+        }
+}
+
+static void glyph(XftFont *f, int px, int py, int w, int h, chtype ch)
 {
     FcChar8 c = ch & A_CHARTEXT;
-    int fg = ch >> 8 & 15, bg = ch >> 12 & 7, t;
-    if (!(ch & A_COLOR)) fg = 7;    /* plain text: light grey */
-    if (ch & A_STANDOUT) { t = fg; fg = bg; bg = t; }
-    XftDrawRect(xd, &col[bg], x * tw, y * th, tw, th);
-    if (c != ' ') XftDrawString8(xd, &col[fg], fnt, x * tw, y * th + fnt->ascent, &c, 1);
+    int inv = !!(ch & A_STANDOUT);
+    XGlyphInfo gi;
+    XSetForeground(dpy, gc, inv ? fg : bg);
+    XFillRectangle(dpy, pix, gc, px, py, w, h);
+    if (c == ' ') return;
+    XftTextExtents8(dpy, f, &c, 1, &gi);
+    XftDrawString8(xd, inv ? &xbg : &xfg, f, px + (w - gi.xOff) / 2, py + (h - f->ascent - f->descent) / 2 + f->ascent, &c, 1);
+}
+
+/* One map cell: tile (+ floor under it), a glyph, or blank. key = what it shows. */
+static void map_cell(int y, int x, int tile, int und, chtype ch)
+{
+    int key = tile >= 0 ? tile << 12 | (und + 1) : ch == ' ' ? 0 : -2 - (int)ch;
+    if (drawn[y][x] == key) return;
+    drawn[y][x] = key;
+    if (tile >= 0 && sheet && (tile / 32 + 1) * 16 <= sheet_h) {
+        blend(und >= 0 ? und : tile, 1);
+        if (und >= 0) blend(tile, 0);
+        XPutImage(dpy, pix, gc, img, 0, 0, x * cell, rowy(y), cell, cell);
+    } else glyph(mapfnt, x * cell, rowy(y), cell, cell, ch == ' ' ? ' ' : ch);
+}
+
+void be_frame(chtype s[][80])
+{
+    static char diff[24][80];
+    int y, x, un, t, n, alnum, text[24] = { 0 };
+
+    for (y = 0; y < rows; y++) if (y < MAP0 || y > MAP1)
+        for (x = 0; x < cols; x++) glyph(fnt, x * tw, rowy(y), tw, th, s[y][x]);
+    /* map: tiles for what the game shows; cells where the screen differs are text or rays */
+    for (y = MAP0; y <= MAP1; y++) {
+        for (x = n = alnum = 0; x < cols; x++) {
+            int ch = s[y][x] & A_CHARTEXT, e = map_char(y, x);
+            diff[y][x] = ch != e || (s[y][x] & A_STANDOUT);
+            if (diff[y][x]) { n++; alnum |= isalnum(ch); }
+        }
+        text[y] = n >= 3 && alnum;
+    }
+    for (y = MAP0; y <= MAP1; y++)      /* a box's border rows have no letters */
+        if (!text[y] && ((y > MAP0 && text[y - 1] == 1) || (y < MAP1 && text[y + 1] == 1)))
+            for (x = 0; x < cols; x++) if (diff[y][x]) { text[y] = 2; break; }
+    by0 = 99; by1 = -1; bx0 = 99; bx1 = -1;
+    for (y = MAP0; y <= MAP1; y++) if (text[y])
+        for (x = 0; x < cols; x++) if (diff[y][x]) {
+            if (y < by0) by0 = y;
+            if (y > by1) by1 = y;
+            if (x < bx0) bx0 = x;
+            if (x > bx1) bx1 = x;
+        }
+    for (y = MAP0; y <= MAP1; y++)
+        for (x = 0; x < cols; x++) {
+            int inbox = y >= by0 && y <= by1 && x >= bx0 && x <= bx1;
+            chtype ch = s[y][x];
+            if (diff[y][x] && !inbox && (ch & A_CHARTEXT) != ' ') { map_cell(y, x, -1, -1, ch & A_CHARTEXT); continue; }
+            ch = inbox || diff[y][x] ? map_char(y, x) : ch & A_CHARTEXT;
+            t = tile_for(y, x, ch, &un);
+            map_cell(y, x, t, un, ch);
+        }
+    if (by1 >= 0) {     /* the text box, one text cell of padding */
+        int px = bx0 * cell, py = rowy(by0), w = (bx1 - bx0 + 3) * tw, h = (by1 - by0 + 1) * th + tw;
+        if (px + w > cols * cell) px = cols * cell - w;
+        XSetForeground(dpy, gc, bg);
+        XFillRectangle(dpy, pix, gc, px, py, w, h);
+        XSetForeground(dpy, gc, fg);
+        XDrawRectangle(dpy, pix, gc, px, py, w - 1, h - 1);
+        for (y = by0; y <= by1; y++)
+            for (x = bx0; x <= bx1; x++) glyph(fnt, px + (x - bx0 + 1) * tw, py + tw / 2 + (y - by0) * th, tw, th, s[y][x]);
+        for (y = MAP0; y <= MAP1; y++)      /* cells under the box get redrawn when it goes */
+            for (x = 0; x < cols; x++)
+                if (rowy(y) < py + h && rowy(y) + cell > py && x * cell < px + w && x * cell + cell > px) drawn[y][x] = -1;
+    }
 }
 
 void be_cursor(int y, int x) { cy = y; cx = x; }
 
 void be_flush(void)
 {
-    XCopyArea(dpy, pix, win, gc, 0, 0, cols * tw, rows * th, 0, 0);
-    XSetForeground(dpy, gc, col[7].pixel);
-    XFillRectangle(dpy, win, gc, cx * tw, cy * th + th - 2, tw, 2);
+    int inbox = by1 >= 0 && cy >= MAP0 && cy <= MAP1;
+    XCopyArea(dpy, pix, win, gc, 0, 0, cols * cell, rowy(rows), 0, 0);
+    XSetForeground(dpy, gc, fg);
+    if (cy < MAP0 || cy > MAP1)
+        XFillRectangle(dpy, win, gc, cx * tw, rowy(cy) + th - 2, tw, 2);
+    else if (!inbox)
+        XDrawRectangle(dpy, win, gc, cx * cell, rowy(cy), cell - 1, cell - 1);
     XFlush(dpy);
 }
 

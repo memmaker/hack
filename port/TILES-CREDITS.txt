@@ -1,0 +1,11 @@
+Tiles (RVIP step 4). port/mktiles.py builds both sheets with the same slot
+layout; HACK_TILESET=nethack picks the NetHack one (default: DawnLike).
+
+tiles-dawn.png: DawnLike 16x16 v1.81 by DragonDePlatino, palette by
+DawnBringer, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/),
+https://opengameart.org/content/dawnlike-16x16-universal-rogue-like-tileset-v18.
+Sprite names from DawnLikeAtlas by Tommy Ettinger (CC BY 4.0). Gaps (egg,
+iron chain) use the NetHack tile. The chameleon is Platino, as the author asks.
+
+tiles.png and gaps: NetHack 3.6 tiles (port/nethack/*.txt), NetHack General
+Public License, by the NetHack DevTeam and tile contributors.

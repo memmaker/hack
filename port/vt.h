@@ -5,7 +5,9 @@ typedef unsigned int chtype;
 #define A_COLOR 0x7f00
 #define A_STANDOUT 0x10000
 void be_init(int c, int r);
-void be_put(int y, int x, chtype ch);
+void be_frame(chtype s[][80]);                   /* whole 80x24 screen */
+int tile_for(int sy, int sx, int ch, int *under); /* port/tiles.c */
+int map_char(int sy, int sx);
 void be_cursor(int y, int x);
 void be_flush(void);
 int be_getkey(int wait);
