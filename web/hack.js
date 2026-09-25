@@ -108,15 +108,8 @@
 		scrollMap(false);
 	}
 	/* keep the hero in the middle half of the map window; recentre when it leaves it */
-	function scrollMap(force) {
-		var b = $('map'), vw = b.clientWidth, vh = b.clientHeight;
-		[['x', hero.x * cell, 80 * cell, vw], ['y', (hero.y - MAP0) * cell, ROWS * cell, vh]].forEach(function (a) {
-			var c = a[1] + cell / 2 - off[a[0]];
-			if (a[2] <= a[3]) off[a[0]] = -Math.floor((a[3] - a[2]) / 2);      /* fits: centre it */
-			else if (force || c < a[3] / 4 || c > a[3] * 3 / 4) off[a[0]] = Math.max(0, Math.min(a[2] - a[3], Math.round(a[1] + cell / 2 - a[3] / 2)));
-		});
-		cv.style.marginLeft = -off.x + 'px';
-		cv.style.marginTop = -off.y + 'px';
+	function scrollMap() {
+		off = RvipWM.center(cv, (hero.x + 0.5) * cell, (hero.y - MAP0 + 0.5) * cell, 80 * cell, ROWS * cell);
 	}
 	var rects = {};
 	function saveLayout() {
