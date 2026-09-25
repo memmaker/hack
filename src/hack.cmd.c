@@ -94,7 +94,7 @@ struct func_tab cmdlist[] = {
 struct ext_func_tab extcmdlist[] = {
     {"dip", dodip}, {"pray", dopray}, {(char *)0, donull}};
 
-extern char *parse(), quitchars[];
+extern char *parse(), *rl_parse(void), quitchars[];
 
 void rhack(char *cmd) {
   struct func_tab *tlist = cmdlist;
@@ -104,7 +104,7 @@ void rhack(char *cmd) {
   if (!cmd) {
     firsttime = TRUE;
     flags.nopick = 0;
-    cmd = parse();
+    cmd = rl_parse();
   }
   if (!*cmd || (*cmd & 0377) == 0377 ||
       (flags.no_rest_on_space && *cmd == ' ')) {

@@ -41,8 +41,9 @@ Commands:
 	S	Save the game.
 	!	Escape to a shell.
 	^Z	Suspend the game.
-	<	up: go up the staircase (if you are standing on it).
+	<	up: go up the staircase; elsewhere walk to the known one.
 	>	down: go down (just like up).
+	x	explore: walk around until something happens.
 	kjhlyubn - go one step in the direction indicated.
 		k: north (i.e., to the top of the screen),
 		j: south, h: west, l: east, y: ne, u: nw, b: se, n: sw.

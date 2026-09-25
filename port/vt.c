@@ -9,6 +9,7 @@
 #define COLS 80
 #define ROWS 24
 static chtype scr[ROWS][COLS], shown[ROWS][COLS];
+int vt_msgs;
 static int cy, cx, so, esc, np, par[4];
 
 static void put(int c)
@@ -45,6 +46,7 @@ static void put(int c)
     default:
         if (c < ' ') break;
         if (cx >= COLS) { cx = 0; put('\n'); }
+        if (!cy) vt_msgs++;
         scr[cy][cx++] = (unsigned char)c | (so ? A_STANDOUT : 0);
         return;
     }

@@ -11,3 +11,4 @@ void be_flush(void);
 int be_getkey(int wait);
 void be_sleep(int ms);
 void be_end(void);
+extern int vt_msgs;   /* printable chars written on the message line */
