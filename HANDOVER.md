@@ -1,6 +1,13 @@
 # Hack (restoHack) — RVIP
 
 ## RVIP progress
+- Stage 5 done (2026-09-25). Next: stage 6 (docs + sound).
+  - `play.sh [nethack]`: TERM=vt100, HACK_TILESET (arg, env, default dawn),
+    runs `build/hack` from the repo root (tiles at `port/*.rgba`).
+  - Release build: `cmake -S . -B build -DHACKDIR_OVERRIDE=$PWD/save`.
+    `save/` (record, perm, saves) seeded from `build/hackdir` on first run.
+  - Window 1440x430 at 0,22 (HACK_POS/HACK_CELL/HACK_TEXT to change).
+  - Shortcut `~/Desktop/Games/Roguelikes/Hack.app`, icon = DawnLike fighter.
 - Stage 1 done (2026-09-25).
 - Stage 4 done (2026-09-25). Next: stage 5 (launcher + shortcut). Tiles, two sets (user: both, switchable).
   - `port/mktiles.py` reads Hack's monster/object names from the C sources
