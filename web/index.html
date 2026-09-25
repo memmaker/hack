@@ -88,7 +88,7 @@
 	<button id="btn-tiles" title="Switch the tile set">Tiles</button>
 	<button id="btn-zoom-out" title="Smaller map">Zoom −</button>
 	<button id="btn-zoom-in" title="Bigger map">Zoom +</button>
-	<button id="btn-layout" title="Put the windows back where they started">Reset windows</button>
+	<button id="btn-layout" title="Windows: layout, show and hide">Windows ▾</button>
 	<span class="sep"></span>
 	<button id="btn-export" title="Download the save file">Export save</button>
 	<button id="btn-import" title="Load a save file from disk">Import save</button>
@@ -101,12 +101,11 @@
 <div id="status">Loading Hack…</div>
 
 <div id="game" hidden>
-	<div class="win" id="t-map"><div class="body" id="map"><canvas></canvas></div></div>
-	<div class="win" id="t-msg"><div class="t"><span class="name">Messages</span><button class="zout" title="Smaller text">A−</button><button class="zin" title="Bigger text">A+</button></div><div class="body"><pre class="txt" id="msg"></pre></div></div>
+	<div class="win" id="t-map"><div class="t"><span class="name">Map</span></div><div class="body" id="map"><canvas></canvas></div></div>
+	<div class="win" id="t-msg"><div class="t"><span class="name">Messages</span></div><div class="body"><pre class="txt" id="msg"></pre></div></div>
 	<div class="win" id="t-stat"><div class="t"><span class="name">Status</span></div><div class="body"><pre class="txt" id="stat"></pre></div></div>
 	<div class="win" id="t-inv"><div class="t"><span class="name">Inventory</span></div><div class="body"><pre class="txt" id="inv"></pre></div></div>
-	<div class="split" id="split" title="Drag to resize"></div>
-	<div class="split v" id="split-side" title="Drag to resize"></div>
+	<div class="win" id="t-vis"><div class="t"><span class="name">Visible</span></div><div class="body wm-list" id="vis"></div></div>
 	<pre class="txt" id="pop" hidden></pre>
 </div>
 
@@ -125,6 +124,7 @@
 	</div>
 </div>
 
+<script src="rvip-wm.js"></script>
 <script src="hack.js"></script>
 <script src="hack-core.js"></script>
 </body>

@@ -14,6 +14,7 @@ void rl_autosave(void);
 
 EM_JS(void, js_frame, (unsigned *scr, int *cell, int y0, int y1, int x0, int x1, int hy, int hx, int lev), { Module.hk.frame(scr, cell, y0, y1, x0, x1, hy, hx, lev); });
 EM_JS(void, js_inv, (const char *s), { Module.hk.inv(UTF8ToString(s)); });
+EM_JS(void, js_vis, (const char *s), { Module.hk.vis(UTF8ToString(s)); });
 EM_JS(void, be_msg, (const char *s), { Module.hk.msg(UTF8ToString(s)); });
 EM_JS(void, js_cursor, (int y, int x), { Module.hk.cursor(y, x); });
 EM_JS(int, js_key, (void), { return Module.hk.key(); });
@@ -46,6 +47,18 @@ void be_frame(chtype s[][80])
         for (struct obj *o = invent; o; o = o->nobj)
             p += snprintf(p, inv + sizeof inv - p, "%c - %.80s\n", o->invlet, doname(o));
         js_inv(inv);
+    }
+    {   /* Visible window: "M<glyph><name>" / "I<glyph><name>" (rvip-wm.js) */
+        static char vis[8192];
+        char *p = vis, *e = vis + sizeof vis - 100;
+        *p = 0;
+        for (struct monst *m = fmon; m && p < e; m = m->nmon)
+            if (!m->mimic && canseemon(m)) p += sprintf(p, "M%c%.60s\n", m->data->mlet, m->data->mname);
+        for (struct obj *o = fobj; o && p < e; o = o->nobj)
+            if (cansee(o->ox, o->oy)) p += sprintf(p, "I%c%.80s\n", o->olet, doname(o));
+        for (struct gold *g = fgold; g && p < e; g = g->ngold)
+            if (cansee(g->gx, g->gy)) p += sprintf(p, "I$%ld gold pieces\n", (long)g->amount);
+        js_vis(vis);
     }
     js_frame(&s[0][0], &cells[0][0], b[0], b[1], b[2], b[3], u.uy + MAP0, u.ux, dlevel);
 }

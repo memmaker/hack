@@ -9,7 +9,7 @@
 	'use strict';
 
 	var DIR = '/hack', SAVES = DIR + '/save', SEED = '/seed';
-	var KEEP = { help: 1, hh: 1, data: 1, rumors: 1, news: 1, perm: 1, record: 1, save: 1 };
+	var KEEP = { 'web-layout.json': 1, help: 1, hh: 1, data: 1, rumors: 1, news: 1, perm: 1, record: 1, save: 1 };
 	var FONT = '"DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace';
 	var FG = '#d7d7d7', A_STANDOUT = 0x10000, MAP0 = 1, MAP1 = 22;
 	var SETS = { dawn: ['tiles-dawn.png', 'DawnLike'], nethack: ['tiles.png', 'NetHack'] };
@@ -36,7 +36,7 @@
 	 * window, scrolled to keep the hero in view; row 0 plus the message
 	 * history in Messages, row 23 in Status, text over the map in a pop-up. */
 	var ROWS = MAP1 - MAP0 + 1, GUT = 6, TITLE = 22, log = [], hero = { y: 0, x: 0, lev: -1 }, off = { x: 0, y: 0 };
-	var split = 0.75, side = 0.6, font = 13;
+	var L = { cell: 0, font: 13, vis: 13, wm: null }, LAYOUT = DIR + '/web-layout.json', wm = null;
 	function esc(t) { return t.replace(/[&<>]/g, function (c) { return '&' + (c === '&' ? 'amp' : c === '<' ? 'lt' : 'gt') + ';'; }); }
 	/* screen row y, columns x0..x1 as HTML (standout, cursor) */
 	function rowHtml(y, x0, x1, cursor) {
@@ -58,8 +58,8 @@
 		ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
 	}
 	function fit() {       /* biggest cell that shows the whole map in its window */
-		var g = $('game'), best = 8;
-		for (var c = 8; c <= 64; c++) if (80 * c + 2 <= g.clientWidth && ROWS * c + 2 <= g.clientHeight * split) best = c;
+		var b = $('map'), best = 8;
+		for (var c = 8; c <= 64; c++) if (80 * c <= b.clientWidth && ROWS * c <= b.clientHeight) best = c;
 		return best;
 	}
 	function glyph(c, px, py, w, h, size) {
@@ -119,44 +119,40 @@
 		cv.style.marginTop = -off.y + 'px';
 	}
 	var rects = {};
-	function place(id, r) {
-		var el = $(id);
-		el.style.left = r[0] + 'px'; el.style.top = r[1] + 'px';
-		el.style.width = Math.max(0, r[2]) + 'px'; el.style.height = Math.max(0, r[3]) + 'px';
+	function saveLayout() {
+		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
 	}
-	function layout() {
-		var g = $('game'), W = g.clientWidth, H = g.clientHeight, lh = Math.ceil(font * 1.4);
-		var sh = TITLE + lh + 8, yb = Math.max(80, Math.min(H - sh - 60, Math.round(H * split)));
-		var xs = Math.max(120, Math.min(W - 120, Math.round(W * side)));
-		rects = { map: [0, 0, W, yb - GUT / 2], msg: [0, yb + GUT / 2, xs - GUT / 2, H - yb - GUT - sh], stat: [0, H - sh, xs - GUT / 2, sh],
-			inv: [xs + GUT / 2, yb + GUT / 2, W - xs - GUT / 2, H - yb - GUT / 2] };
-		place('t-map', rects.map); place('t-msg', rects.msg); place('t-stat', rects.stat); place('t-inv', rects.inv);
-		place('split', [0, yb - GUT / 2, W, GUT]); place('split-side', [xs - GUT / 2, yb + GUT / 2, GUT, H - yb - GUT / 2]);
-		['msg', 'stat', 'inv', 'pop'].forEach(function (id) { $(id).style.fontSize = font + 'px'; });
-		scrollMap(true); draw();
+	function fonts() {
+		['msg', 'stat', 'inv', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; });
+		$('vis').style.fontSize = L.vis + 'px';
+	}
+	/* windows: the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
+	function makeWM() {
+		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, vis: s.vis || 13, wm: s.wm }; } catch (e) { }
+		if (L.cell >= 8 && L.cell <= 64) { cell = L.cell; auto = false; }
+		var H = $('game').clientHeight || 600, line = Math.ceil(L.font * 1.4) + 6;
+		wm = RvipWM({
+			area: $('game'), menu: $('btn-layout'),
+			wins: [{ id: 'map', title: 'Map' }, { id: 'msg', title: 'Messages' }, { id: 'stat', title: 'Status' }, { id: 'inv', title: 'Inventory' }, { id: 'vis', title: 'Visible' }],
+			multi: { d: 'v', r: 0.7, a: 'map', b: { d: 'h', r: 0.4, a: { d: 'v', r: 0.7, a: 'msg', b: 'stat' }, b: { d: 'h', r: 0.5, a: 'inv', b: 'vis' } } },
+			single: { d: 'v', r: line / H, a: 'msg', b: { d: 'v', r: 1 - line / (H - line), a: 'map', b: 'stat' } },
+			state: L.wm, noFont: 'map',
+			save: function (st) { L.wm = st; saveLayout(); },
+			layout: function (r) { rects = r; fonts(); if (auto) { cell = fit(); measure(); } scrollMap(true); draw(); },
+			font: function (id, d) {
+				if (id === 'vis') L.vis = Math.max(8, Math.min(28, L.vis + d));
+				else L.font = Math.max(8, Math.min(28, L.font + d));
+				fonts(); saveLayout();
+			},
+			onReset: function () { auto = true; L.cell = 0; L.font = L.vis = 13; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); }
+		});
+		wm.apply();
 	}
 	function zoom(d) {
 		auto = false;
 		cell = Math.max(8, Math.min(64, cell + d));
-		store('hack-cell', cell);
+		L.cell = cell; saveLayout();
 		measure(); scrollMap(true); draw();
-	}
-	function zoomText(d) { font = Math.max(8, Math.min(28, font + d)); store('hack-font', font); layout(); }
-	function resetLayout() {
-		auto = true; split = 0.75; side = 0.6; font = 13;
-		['hack-cell', 'hack-split', 'hack-side', 'hack-font'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { } });
-		cell = fit(); measure(); layout();
-	}
-	function drag(e) {
-		var el = e.currentTarget, v = el.id === 'split-side', g = $('game').getBoundingClientRect();
-		el.setPointerCapture(e.pointerId); el.classList.add('drag');
-		el.onpointermove = function (ev) {
-			if (v) side = Math.max(0.2, Math.min(0.9, (ev.clientX - g.left) / g.width));
-			else split = Math.max(0.2, Math.min(0.9, (ev.clientY - g.top) / g.height));
-			layout();
-		};
-		el.onpointerup = function () { el.classList.remove('drag'); el.onpointermove = el.onpointerup = null; store('hack-split', split); store('hack-side', side); };
-		e.preventDefault();
 	}
 	function setTiles(s) {
 		set = SETS[s] ? s : 'dawn';
@@ -173,15 +169,23 @@
 			box = [y0, y1, x0, x1];
 			if ($('game').hidden) {
 				$('game').hidden = false;
-				if (auto) cell = fit();
-				measure(); layout();
+				measure(); makeWM();
 			}
 			var moved = hy !== hero.y || hx !== hero.x, lv = lev !== hero.lev;
 			hero.y = hy; hero.x = hx; hero.lev = lev;
 			if (moved || lv) scrollMap(lv);
 			draw();
 		},
-		inv: function (t) { if (t !== hk.lastInv) { hk.lastInv = t; $('inv').textContent = t; } },
+		/* inventory lines coloured by item kind (Angband colours, rvip-wm.js) */
+		inv: function (t) {
+			if (t === hk.lastInv) return;
+			hk.lastInv = t;
+			$('inv').innerHTML = t.split('\n').map(function (l) {
+				var c = RvipWM.itemColor(l.slice(4));
+				return c ? '<span style="color:' + c + '">' + esc(l) + '</span>' : esc(l);
+			}).join('\n');
+		},
+		vis: function (s) { RvipWM.visible($('vis'), s); },
 		msg: function (t) {
 			t = t.replace(/\s*\n\s*/g, ' ').trim();
 			if (t && t !== log[log.length - 1]) { log.push(t); if (log.length > 200) log.shift(); }
@@ -349,21 +353,11 @@
 	});
 	document.addEventListener('visibilitychange', function () { if (document.hidden) wantSaveFlag = true; });
 
-	window.addEventListener('resize', function () { if (!scr) return; if (auto) { cell = fit(); measure(); } layout(); });
+	window.addEventListener('resize', function () { if (wm) wm.apply(); });
 	document.addEventListener('keydown', onKey);
 	document.addEventListener('DOMContentLoaded', function () {
 		cv = document.querySelector('#game canvas');
 		ctx = cv.getContext('2d');
-		var c = +store('hack-cell');
-		if (c >= 8 && c <= 64) { cell = c; auto = false; }
-		if (+store('hack-split') > 0) split = +store('hack-split');
-		if (+store('hack-side') > 0) side = +store('hack-side');
-		$('split-side').addEventListener('pointerdown', drag);
-		if (+store('hack-font') >= 8) font = +store('hack-font');
-		$('btn-layout').onclick = resetLayout;
-		$('split').addEventListener('pointerdown', drag);
-		document.querySelector('#t-msg .zin').onclick = function () { zoomText(1); };
-		document.querySelector('#t-msg .zout').onclick = function () { zoomText(-1); };
 		setTiles(store('hack-tileset'));
 		$('btn-tiles').onclick = function () { setTiles(set === 'dawn' ? 'nethack' : 'dawn'); };
 		$('btn-export').onclick = exportSave;

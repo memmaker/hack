@@ -348,7 +348,8 @@ int main(int argc, char *argv[]) {
     }
     seemons();
 #ifdef NEWS
-    if (flags.nonews || !readnews())
+    extern int auto_more;   /* RVIP: the news page would wait at --More-- */
+    if (flags.nonews || auto_more || !readnews())
     /* after reading news we did docrt() already */
 #endif
       docrt();
