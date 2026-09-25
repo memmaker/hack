@@ -43,7 +43,7 @@ typedef struct {
  *                   - Struct dump now has pointers zeroed before save
  */
 #define RH_MAGIC "RHCK"
-#define RH_VERSION 2
+#define RH_VERSION 3   /* port: 3 adds the item-description shuffle (restnames) */
 #define RH_ENDIANTAG 0x01020304
 
 /* Fixed-width type definitions for save format */
@@ -296,7 +296,7 @@ extern struct obj *restobjchn(int fd);
 extern struct monst *restmonchn(int fd);
 extern int dosave0(int hu);
 extern void savenames(int fd);
-extern void restnames(int fd);
+extern void restnames(int fd, int descr);
 /* MODERN: CONST-CORRECTNESS: settty message is read-only */
 extern void settty(const char *s);
 
@@ -577,7 +577,7 @@ int dorecover(int fd) {
         }
       }
 
-    } else if (hdr.version == 2) {
+    } else if (hdr.version >= 2) {
       /* Version 2: Safe pointer serialization */
 
       /* Restore usick_cause from object index */
@@ -640,7 +640,7 @@ int dorecover(int fd) {
     (void)close(fd);
     return (0);
   }
-  restnames(fd);
+  restnames(fd, hdr.version >= 3);
   while (1) {
     if (read(fd, (char *)&tmp, sizeof tmp) != sizeof tmp)
       break;

@@ -36,7 +36,7 @@ int probtype(int let);
 void setgemprobs(void);
 void oinit(void);
 void savenames(int fd);
-void restnames(int fd);
+void restnames(int fd, int descr);
 int dodiscovered(void);
 int interesting_to_discover(int i);
 
@@ -196,7 +196,7 @@ void savenames(int fd) {
   }
 }
 
-void restnames(int fd) {
+void restnames(int fd, int descr) {
   int i;
   unsigned len;
   
@@ -214,10 +214,10 @@ void restnames(int fd) {
   
   /* MODERN: Restore static pointers (point to static strings in binary) */
   for (i = 0; i < SIZE(objects); i++) {
-    int k;
-    mread(fd, (char *)&k, sizeof k);
+    int k = -1;
+    if (descr) mread(fd, (char *)&k, sizeof k);   /* older saves: labels change */
     objects[i].oc_name = saved_names[i];
-    objects[i].oc_descr = k >= 0 ? descr0[k] : NULL;
+    objects[i].oc_descr = k >= 0 ? descr0[k] : descr ? NULL : descr0[i];
   }
   
   for (i = 0; i < SIZE(objects); i++)
