@@ -13,6 +13,23 @@ extern char SAVEF[];
 void rl_autosave(void);
 
 EM_JS(void, js_frame, (unsigned *scr, int *cell, int y0, int y1, int x0, int x1, int hy, int hx, int lev), { Module.hk.frame(scr, cell, y0, y1, x0, x1, hy, hx, lev); });
+/* Angband's colour for an object class (RVIP W0: colours come from the game) */
+static const char *css(int olet)
+{
+    switch (olet) {
+    case AMULET_SYM: return "#ff9000";
+    case FOOD_SYM:   return "#d09050";
+    case WEAPON_SYM: return "#b0b0b8";
+    case TOOL_SYM:   return "#c0c0c0";
+    case ARMOR_SYM:  return "#a07040";
+    case POTION_SYM: return "#40a0ff";
+    case SCROLL_SYM: return "#ffffff";
+    case WAND_SYM:   return "#40d040";
+    case RING_SYM:   return "#ff4040";
+    case GEM_SYM:    return "#ff60ff";
+    }
+    return "";
+}
 EM_JS(void, js_inv, (const char *s), { Module.hk.inv(UTF8ToString(s)); });
 EM_JS(void, js_vis, (const char *s), { Module.hk.vis(UTF8ToString(s)); });
 EM_JS(void, be_msg, (const char *s), { Module.hk.msg(UTF8ToString(s)); });
@@ -40,12 +57,12 @@ void be_frame(chtype s[][80])
 {
     int b[4];
     vt_map(s, b, cell);
-    {   /* Inventory window: "a - item" per line */
+    {   /* Inventory window: "<css colour>\ta - item" per line */
         static char inv[52 * 90];
         char *p = inv;
         *p = 0;
         for (struct obj *o = invent; o; o = o->nobj)
-            p += snprintf(p, inv + sizeof inv - p, "%c - %.80s\n", o->invlet, doname(o));
+            p += snprintf(p, inv + sizeof inv - p, "%s\t%c - %.80s\n", css(o->olet), o->invlet, doname(o));
         js_inv(inv);
     }
     {   /* Visible window: "M<glyph><name>" / "I<glyph><name>" (rvip-wm.js) */
@@ -55,9 +72,9 @@ void be_frame(chtype s[][80])
         for (struct monst *m = fmon; m && p < e; m = m->nmon)
             if (!m->mimic && canseemon(m)) p += sprintf(p, "M%c%.60s\n", m->data->mlet, m->data->mname);
         for (struct obj *o = fobj; o && p < e; o = o->nobj)
-            if (cansee(o->ox, o->oy)) p += sprintf(p, "I%c%.80s\n", o->olet, doname(o));
+            if (cansee(o->ox, o->oy)) p += sprintf(p, "I%c%.80s\t%s\n", o->olet, doname(o), css(o->olet));
         for (struct gold *g = fgold; g && p < e; g = g->ngold)
-            if (cansee(g->gx, g->gy)) p += sprintf(p, "I$%ld gold pieces\n", (long)g->amount);
+            if (cansee(g->gx, g->gy)) p += sprintf(p, "I$%ld gold pieces\t#ffe040\n", (long)g->amount);
         js_vis(vis);
     }
     js_frame(&s[0][0], &cells[0][0], b[0], b[1], b[2], b[3], u.uy + MAP0, u.ux, dlevel);

@@ -176,12 +176,13 @@
 			if (moved || lv) scrollMap(lv);
 			draw();
 		},
-		/* inventory lines coloured by item kind (Angband colours, rvip-wm.js) */
+		/* inventory lines "<colour>\t<text>", coloured by the game */
 		inv: function (t) {
 			if (t === hk.lastInv) return;
 			hk.lastInv = t;
 			$('inv').innerHTML = t.split('\n').map(function (l) {
-				var c = RvipWM.itemColor(l.slice(4));
+				var i = l.indexOf('\t'), c = l.slice(0, i);
+				l = l.slice(i + 1);
 				return c ? '<span style="color:' + c + '">' + esc(l) + '</span>' : esc(l);
 			}).join('\n');
 		},
