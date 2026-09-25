@@ -194,3 +194,4 @@ review_diffs/
 test/
 release.sh
 .gdbinit
+web/dist/

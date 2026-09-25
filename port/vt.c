@@ -64,6 +64,13 @@ static void present(void)
 }
 
 static int out(void *c, const char *b, int n) { for (int i = 0; i < n; i++) put((unsigned char)b[i]); return n; }
+#ifdef __EMSCRIPTEN__   /* no funopen() in musl */
+static ssize_t c_out(void *c, const char *b, size_t n) { return out(c, b, n); }
+static int in(void *c, char *b, int n);
+static ssize_t c_in(void *c, char *b, size_t n) { return in(c, b, n); }
+FILE *hk_out, *hk_in;
+#define funopen(c, r, w, s, cl) fopencookie(c, (r) ? "r" : "w", (cookie_io_functions_t){ (r) ? c_in : 0, (w) ? c_out : 0, 0, 0 })
+#endif
 
 static char queue[64];
 
@@ -119,6 +126,10 @@ static int in(void *c, char *b, int n)
     fflush(stdout);
     present();
     while ((k = be_getkey(1)) < 0) ;
+    if (vt_cooked()) {   /* tty echo, before setftty() (the name prompt) */
+        if (k == '\b') { put('\b'); put(' '); put('\b'); }
+        else if (k == '\n' || (k >= ' ' && k < 127)) put(k);
+    }
     b[0] = k;
     return 1;
 }

@@ -9,15 +9,12 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <X11/Xft/Xft.h>
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "vt.h"
 #include <time.h>
 
-#define MAP0 1          /* first map row */
-#define MAP1 22         /* last map row */
 static Display *dpy;
 static Window win;
 static Pixmap pix;
@@ -136,7 +133,7 @@ static void glyph(XftFont *f, int px, int py, int w, int h, chtype ch)
 }
 
 /* One map cell: tile (+ floor under it), a glyph, or blank. key = what it shows. */
-static void map_cell(int y, int x, int tile, int und, chtype ch)
+static void map_cell(int y, int x, int tile, int und, int ch)
 {
     int key = tile >= 0 ? tile << 12 | (und + 1) : ch == ' ' ? 0 : -2 - (int)ch;
     if (drawn[y][x] == key) return;
@@ -150,40 +147,12 @@ static void map_cell(int y, int x, int tile, int und, chtype ch)
 
 void be_frame(chtype s[][80])
 {
-    static char diff[24][80];
-    int y, x, un, t, n, alnum, text[24] = { 0 };
+    int y, x, b[4];
 
     for (y = 0; y < rows; y++) if (y < MAP0 || y > MAP1)
         for (x = 0; x < cols; x++) glyph(fnt, x * tw, rowy(y), tw, th, s[y][x]);
-    /* map: tiles for what the game shows; cells where the screen differs are text or rays */
-    for (y = MAP0; y <= MAP1; y++) {
-        for (x = n = alnum = 0; x < cols; x++) {
-            int ch = s[y][x] & A_CHARTEXT, e = map_char(y, x);
-            diff[y][x] = ch != e || (s[y][x] & A_STANDOUT);
-            if (diff[y][x]) { n++; alnum |= isalnum(ch); }
-        }
-        text[y] = n >= 3 && alnum;
-    }
-    for (y = MAP0; y <= MAP1; y++)      /* a box's border rows have no letters */
-        if (!text[y] && ((y > MAP0 && text[y - 1] == 1) || (y < MAP1 && text[y + 1] == 1)))
-            for (x = 0; x < cols; x++) if (diff[y][x]) { text[y] = 2; break; }
-    by0 = 99; by1 = -1; bx0 = 99; bx1 = -1;
-    for (y = MAP0; y <= MAP1; y++) if (text[y])
-        for (x = 0; x < cols; x++) if (diff[y][x]) {
-            if (y < by0) by0 = y;
-            if (y > by1) by1 = y;
-            if (x < bx0) bx0 = x;
-            if (x > bx1) bx1 = x;
-        }
-    for (y = MAP0; y <= MAP1; y++)
-        for (x = 0; x < cols; x++) {
-            int inbox = y >= by0 && y <= by1 && x >= bx0 && x <= bx1;
-            chtype ch = s[y][x];
-            if (diff[y][x] && !inbox && (ch & A_CHARTEXT) != ' ') { map_cell(y, x, -1, -1, ch & A_CHARTEXT); continue; }
-            ch = inbox || diff[y][x] ? map_char(y, x) : ch & A_CHARTEXT;
-            t = tile_for(y, x, ch, &un);
-            map_cell(y, x, t, un, ch);
-        }
+    vt_map(s, b, map_cell);
+    by0 = b[0]; by1 = b[1]; bx0 = b[2]; bx1 = b[3];
     if (by1 >= 0) {     /* the text box, one text cell of padding */
         int px = bx0 * cell, py = rowy(by0), w = (bx1 - bx0 + 3) * tw, h = (by1 - by0 + 1) * th + tw;
         if (px + w > cols * cell) px = cols * cell - w;
@@ -248,9 +217,14 @@ static int keycode(XKeyEvent *ev)
         return n == 1 ? (unsigned char)buf[0] : -1;
 }
 
+extern int rl_at_prompt;
+void rl_autosave(void);
 int be_getkey(int wait)
 {
     XEvent ev;
+    static int test = -1;
+    if (test < 0) test = !!getenv("HACK_AUTOSAVE");
+    if (test && rl_at_prompt) { rl_at_prompt = 0; rl_autosave(); rl_at_prompt = 1; }
     for (;;) {
         if (!wait && !XPending(dpy)) return -1;
         XNextEvent(dpy, &ev);

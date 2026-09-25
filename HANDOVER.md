@@ -78,3 +78,17 @@
 - ASan run (`-DCMAKE_C_FLAGS=-fsanitize=address`): 150 random keys, save
   (`S` saves at once, no prompt), restore: clean, HP kept.
 - Quirks: `S` exits the process (window closes). Upstream termcap warnings.
+- Stage 7 (web) done: https://ruzzoli.de/roguelikes/hack/
+  - Files: `port/be_web.c`, `port/termcap-web.c`, `port/web-inc/`, `web/`.
+    Build `sh web/build.sh` (after a native build; needs
+    `build/hack.onames.h`), deploy `sh web/deploy.sh`.
+  - Emscripten: `web-inc/hkio.h` force-included, redirects stdin/stdout to
+    fopencookie streams; `-D__linux__` (termios), `EXIT_RUNTIME=1`, async
+    `js_end` awaits IDBFS sync. Page makes dummy `/this.program` (gethdate).
+  - Autosave at command prompt: `dosave0(1)` + `dorecover`, write file back;
+    reset worn ptrs first; toplin=2 + `redotoplin()`; restore moonphase/luck.
+    X11 test knob `HACK_AUTOSAVE=1`.
+  - Fixed wasm traps: `hack.steal.c` somegold long, `hack.o_init.c` externs.
+  - Ceilings: menu borders spill onto message/status rows (as X11); end
+    screen not shown before overlay.
+  - Next: stage 8 (memmaker, tree, RVIP.md notes).

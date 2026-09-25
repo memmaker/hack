@@ -8,6 +8,12 @@ void be_init(int c, int r);
 void be_frame(chtype s[][80]);                   /* whole 80x24 screen */
 int tile_for(int sy, int sx, int ch, int *under); /* port/tiles.c */
 int map_char(int sy, int sx);
+int vt_cooked(void);                  /* tty still echoes (before setftty) */
+#define MAP0 1          /* first map row */
+#define MAP1 22         /* last map row */
+/* Map rows of s: cell() per map cell (tile -1 = draw ch as a glyph);
+   box = {y0, y1, x0, x1} of text drawn over the map, y1 < 0 if none. */
+void vt_map(chtype s[][80], int box[4], void (*cell)(int y, int x, int tile, int und, int ch));
 void be_cursor(int y, int x);
 void be_flush(void);
 int be_getkey(int wait);

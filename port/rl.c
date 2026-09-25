@@ -42,6 +42,7 @@ static int path(void)
     static short q[COLNO * ROWNO];
     static schar from[COLNO][ROWNO];
     int h = 0, t = 0, i, x, y, nx, ny;
+    struct monst *m;
 
     memset(from, -1, sizeof from);
     from[u.ux][u.uy] = 8;
@@ -59,6 +60,7 @@ static int path(void)
         for (i = 0; i < 8; i++) {
             nx = x + xdir[i], ny = y + ydir[i];
             if (!pass(nx, ny) || from[nx][ny] != -1) continue;
+            if (h == 1 && (m = m_at(nx, ny)) && m->mdispl) continue;   /* moving into the pet attacks it */
             if (xdir[i] && ydir[i] && (levl[x][y].typ == DOOR || levl[nx][ny].typ == DOOR)) continue;
             from[nx][ny] = i;
             q[t++] = nx * ROWNO + ny;
@@ -252,7 +254,49 @@ int rl_pick(const char *lets)
     return vt_menukey < 0x100 ? vt_menukey : 033;
 }
 
+static char *parse1(void);
+int rl_saved, rl_at_prompt;
 char *rl_parse(void)
+{
+    char *c;
+    rl_saved = 0;
+    c = parse1();
+    rl_saved = c[0] == 'S' && !c[1];    /* web: keep the save file at exit */
+    return c;
+}
+
+#include <fcntl.h>
+/* Web autosave (X11: HACK_AUTOSAVE=1 tests it at every prompt): dosave0()
+   writes the save and tears the game down, so restore it at once and put
+   the file back (dorecover() deletes it). */
+void rl_autosave(void)
+{
+    extern char SAVEF[];
+    extern int dosave0(int), dorecover(int);
+    extern void redotoplin(void);
+    int fd, ph = flags.moonphase, tl = flags.toplin;
+    long n = 0;
+    char *buf = NULL;
+    FILE *f;
+
+    flags.toplin = tl ? 2 : 0;          /* docrt() in dorecover: no --More-- */
+    if (!dosave0(1)) { flags.toplin = tl; return; }
+    if ((f = fopen(SAVEF, "rb"))) {
+        fseek(f, 0, SEEK_END); n = ftell(f); rewind(f);
+        if ((buf = malloc(n))) n = fread(buf, 1, n, f);
+        fclose(f);
+    }
+    uarm = uarm2 = uarmh = uarms = uarmg = uwep = uball = uchain = uleft = uright = 0;  /* freed; setworn() */
+    if ((fd = open(SAVEF, 0)) < 0 || !dorecover(fd)) { free(buf); done("tricked"); }
+    if (tl) redotoplin();               /* the message stays up */
+    flags.toplin = tl;
+    flags.moonphase = ph;
+    if (ph == FULL_MOON) u.uluck++;     /* dosave0 took it */
+    if (buf && (f = fopen(SAVEF, "wb"))) { fwrite(buf, 1, n, f); fclose(f); }
+    free(buf);
+}
+
+static char *parse1(void)
 {
     static char b[2];
     char *cmd;
@@ -269,7 +313,9 @@ char *rl_parse(void)
             }
             mode = 0;
         }
+        rl_at_prompt = 1;
         cmd = parse();
+        rl_at_prompt = 0;
         if (cmd[1] || multi) return cmd;
         if (cmd[0] == '\n' || cmd[0] == '\r') { int k = cmd_menu(); if (!k) continue; b[0] = k; cmd = b; }
         if (cmd[0] == 'i') { if ((cmd = inv_menu())) return cmd; continue; }
