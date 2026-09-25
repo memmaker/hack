@@ -1,6 +1,12 @@
 # Hack (restoHack) — RVIP
 
 ## RVIP progress
+- Stage 6 done (2026-09-25). Next: stage 7 (web).
+  - Docs: `hack.html` via `parse_hack()` (reads `hh`) + GAMES entry in
+    `~/Desktop/Games/Roguelikes/Docs/build-docs.py`; guide + saving in
+    `guides.py`. In-game help lives in root `help`/`hh` (the build copies
+    them over `hackdir/`; `hackdir/help`, `hackdir/hh` are stale upstream).
+  - Sound: none (upstream has none; user rule). For web, sound stays off.
 - Stage 5 done (2026-09-25). Next: stage 6 (docs + sound).
   - `play.sh [nethack]`: TERM=vt100, HACK_TILESET (arg, env, default dawn),
     runs `build/hack` from the repo root (tiles at `port/*.rgba`).
