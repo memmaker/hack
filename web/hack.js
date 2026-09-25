@@ -49,6 +49,7 @@
 		}
 		return (so ? h + '</span>' : h).replace(/\s+$/, '');
 	}
+	function rowText(y) { var s = '', x; for (x = 0; x < 80; x++) s += String.fromCharCode((scr[y * 80 + x] & 255) || 32); return s; }
 	function measure() {
 		var w = 80 * cell, h = ROWS * cell;
 		cv.width = w * dpr; cv.height = h * dpr;
@@ -105,6 +106,7 @@
 			(log.length ? '\n' : '') + rowHtml(0, 0, 79, true);
 		if (atEnd) body.scrollTop = body.scrollHeight;
 		$('stat').innerHTML = rowHtml(23, 0, 79, true);
+		RvipWM.prompt.text(rowText(0));      /* the prompt line over the map */
 		scrollMap(false);
 	}
 	/* keep the hero in the middle half of the map window; recentre when it leaves it */
@@ -188,7 +190,7 @@
 			else { log.push(t); if (log.length > 200) log.shift(); }
 		},
 		cursor: function (y, x) { cur.y = y; cur.x = x; draw(); },
-		key: function () { return events.length ? events.shift() : -1; },
+		key: function (atCmd) { RvipWM.prompt.wait(atCmd); return events.length ? events.shift() : -1; },
 		/* autosave at most every 2 s, and when the page is hidden */
 		wantSave: function () {
 			var now = performance.now();
