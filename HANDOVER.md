@@ -92,3 +92,8 @@
   - Ceilings: menu borders spill onto message/status rows (as X11); end
     screen not shown before overlay.
   - Next: stage 8 (memmaker, tree, RVIP.md notes).
+- Stage 8 (publish) done: https://github.com/memmaker/hack (branch
+  `master`, remote `memmaker`); README header + compare link; deploy.sh
+  guard; selection-page card + gold tree link (Hack node, 1982 Fenlason /
+  1.0.3 1985 Brouwer, per restoHack README); RVIP.md O-Hack section;
+  rogue2wasm.md table row. Next: stage 9 shrine (`shrine/hack.html`).
