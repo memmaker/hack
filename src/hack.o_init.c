@@ -49,8 +49,25 @@ int letindex(char let) {
   return (0);
 }
 
+/* port: descriptions as first set, so a save can store the shuffle as
+   indices (the pointers were lost on restore: labels changed) */
+static const char *descr0[SIZE(objects)];
+
+static void init_descr0(void) {   /* before any shuffle; restore skips init_objects */
+  static int done;
+  if (!done++)
+    for (int k = 0; k < SIZE(objects); k++) descr0[k] = objects[k].oc_descr;
+}
+
+static int descr_index(const char *d) {
+  for (int k = 0; k < SIZE(objects); k++)
+    if (d && descr0[k] == d) return k;
+  return -1;
+}
+
 void init_objects(void) {
   int i, j, first, last, sum, end;
+  init_descr0();
   char let;
   const char *tmp; /* MODERN: const to match oc_descr field type */
   /* init base; if probs given check that they add up to 100,
@@ -161,6 +178,10 @@ void savenames(int fd) {
   unsigned len;
   bwrite(fd, (char *)bases, sizeof bases);
   bwrite(fd, (char *)objects, sizeof objects);
+  for (i = 0; i < SIZE(objects); i++) {
+    int k = descr_index(objects[i].oc_descr);
+    bwrite(fd, (char *)&k, sizeof k);
+  }
   /* as long as we use only one version of Hack/Quest we
      need not save oc_name and oc_descr, but we must save
      oc_uname for all objects */
@@ -183,19 +204,20 @@ void restnames(int fd) {
      Assumes objects[] static pointers are valid at this point.
      If init_objects() ever moves, ensure snapshot happens after it. */
   const char *saved_names[SIZE(objects)];
-  const char *saved_descr[SIZE(objects)];
   for (i = 0; i < SIZE(objects); i++) {
     saved_names[i] = objects[i].oc_name;
-    saved_descr[i] = objects[i].oc_descr;
   }
   
+  init_descr0();
   mread(fd, (char *)bases, sizeof bases);
   mread(fd, (char *)objects, sizeof objects);
   
   /* MODERN: Restore static pointers (point to static strings in binary) */
   for (i = 0; i < SIZE(objects); i++) {
+    int k;
+    mread(fd, (char *)&k, sizeof k);
     objects[i].oc_name = saved_names[i];
-    objects[i].oc_descr = saved_descr[i];
+    objects[i].oc_descr = k >= 0 ? descr0[k] : NULL;
   }
   
   for (i = 0; i < SIZE(objects); i++)
