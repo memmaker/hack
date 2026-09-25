@@ -1,3 +1,5 @@
+> **memmaker/hack**: a port of [restoHack](https://github.com/Critlist/restoHack/tree/0bd798b120145f9d7b96820e92e2fd5acd44e12b) (Hack 1.0, 1984) with an X11 tile frontend, auto-explore, stair-walking, Enter menu, inventory menus and a web build (https://ruzzoli.de/roguelikes/hack/). Our changes: [compare](https://github.com/memmaker/hack/compare/0bd798b120145f9d7b96820e92e2fd5acd44e12b...master).
+
 # restoHack: Bringing 1984 Hack Back from the Dead
 
 **restoHack** is a full-blooded resurrection of *Hack*, the 1984 roguelike that spawned *NetHack*.
