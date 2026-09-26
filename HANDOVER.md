@@ -106,3 +106,8 @@
     "<corrupted>" item names in wasm (safe_strcat rejected addresses
     < 0x1000). Docs: Amulet is on level 30+, levels are kept.
   - Hack is complete. Next game in RVIP-todo.md: NetHack 1.3d.
+- Prompt line (RVIP step 5 / W4, 2026-09-26): the live message row is shown in a
+  box over the map by `RvipWM.prompt` (rvip-wm.js). A key hides it only while
+  the game waits for a command, so a question stays up until answered.
+  Here: `js_key(rl_at_prompt)` in `port/be_web.c`; `web/hack.js` sends screen
+  row 0 (`rowText(0)`) from `draw()`.
