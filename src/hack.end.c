@@ -246,6 +246,15 @@ void done(const char *st1) {
     getret(); /* all those pieces of coloured glass ... */
     cls();
   }
+#ifdef __EMSCRIPTEN__
+  { /* RVIP: run report beacon (port/be_web.c) */
+    extern void be_run_end(const char *ev, const char *killer);
+    if (*st1 == 'e')
+      be_run_end(strncmp(killer, "escaped (", 9) ? "quit" : "win", (char *)0);
+    else
+      be_run_end(*st1 == 'q' ? "quit" : "death", *st1 == 'q' ? (char *)0 : killer);
+  }
+#endif
 #ifdef WIZARD
   if (!wizard)
 #endif /* WIZARD */
