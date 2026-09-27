@@ -503,9 +503,14 @@ void glo(int foo) {
  * explicitly (-w implies wizard) or by askname.
  * It may still contain a suffix denoting pl_character.
  */
+static void askname_again(void);
 void askname(void) {
+  printf("\n");
+  askname_again();
+}
+static void askname_again(void) {
   register int c, ct;
-  printf("\nWho are you? ");
+  printf("Who are you? \033[K");
   (void)fflush(stdout);
   ct = 0;
   while ((c = getchar()) != '\n') {
@@ -525,8 +530,12 @@ void askname(void) {
       plname[ct++] = c;
   }
   plname[ct] = 0;
-  if (ct == 0)
-    askname();
+  if (ct == 0) {
+    /* MODERN: empty answer - ask again on the same line (cursor up past the
+       echoed newline) instead of stacking another "Who are you?" */
+    printf("\033[A\r");
+    askname_again();
+  }
 }
 
 /*VARARGS1*/
