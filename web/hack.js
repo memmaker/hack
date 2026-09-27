@@ -19,7 +19,7 @@
 	var KEYS = { ArrowUp: 0x101, ArrowDown: 0x102, ArrowLeft: 0x103, ArrowRight: 0x104, Home: 121, PageUp: 117,
 		End: 98, PageDown: 110, Clear: 46, Enter: 10, Escape: 27, Backspace: 8, Delete: 8, Tab: 9 };
 
-	var events = [], running = false, lastSave = 0;
+	var events = [], lastSave = 0;
 	var wantSaveFlag = true;   /* restoring deletes the save: write it back at the first prompt */
 	var scr = null, cells = null, box = [99, -1, 99, -1], cur = { y: 0, x: 0 };
 	var cv, ctx, cell = 18, auto = true;
@@ -28,10 +28,6 @@
 	function tilesReady() { var i = sheets[SETS[set][0]]; return !!(SETS[set][0] && i && i.complete && i.naturalWidth); }
 
 	function $(id) { return document.getElementById(id); }
-	function status(msg, isError) {
-		var s = $('status');
-		s.textContent = msg; s.hidden = !msg; s.classList.toggle('error', !!isError);
-	}
 	function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { } return null; }
 
 	/* ---------- drawing ---------- */
@@ -156,7 +152,7 @@
 	}
 	var rects = {};
 	function saveLayout() {
-		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
+		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); app.sync(); } catch (e) { console.warn('layout not saved', e); }
 	}
 	function fonts() {
 		['msg', 'stat', 'inv', 'vis'].forEach(function (id) { $(id).style.fontFamily = id !== 'vis' || L.face ? face(false) : ''; });
@@ -199,7 +195,7 @@
 		var redraw = function () { fonts(); draw(); };
 		if (!n) { if (now) redraw(); return; }
 		var ff = new FontFace(n, 'url(../fonts/' + n + '.woff)');
-		ff.load().then(function () { document.fonts.add(ff); redraw(); }).catch(function () { status('Could not load the font ' + n + '.', true); });
+		ff.load().then(function () { document.fonts.add(ff); redraw(); }).catch(function () { app.status('Could not load the font ' + n + '.', true); });
 	}
 	/* a tile as a 16px CSS sprite (Inventory and Visible icons) */
 	function icon(t) {
@@ -288,13 +284,13 @@
 			var now = performance.now();
 			if (!wantSaveFlag || (now - lastSave < 2000 && !document.hidden)) return 0;
 			wantSaveFlag = false; lastSave = now;
-			setTimeout(syncFiles, 0);
+			setTimeout(app.sync, 0);
 			return 1;
 		},
 		end: function (saved) {
-			running = false;
+			app.running = false;
 			return new Promise(function (done) {
-				syncFiles(function () {
+				app.sync(function () {
 					$('overlay-msg').textContent = saved ? 'Your game has been saved. Play again to continue it.' : 'The game is over.';
 					$('overlay').hidden = false;
 					done();
@@ -305,11 +301,7 @@
 
 	/* ---------- input ---------- */
 	function onKey(e) {
-		if (!$('help').hidden) {
-			if (e.key === 'Escape') { $('help').hidden = true; e.preventDefault(); }
-			return;
-		}
-		if (!running || e.isComposing || e.metaKey) return;
+		if (!app.running || e.isComposing || e.metaKey) return;
 		var k = e.key, c;
 		if (e.code === 'NumpadEnter') c = 10;
 		else if (KEYS[k] !== undefined) c = KEYS[k];
@@ -327,70 +319,25 @@
 		e.preventDefault();
 	}
 
-	/* ---------- saves: IndexedDB (IDBFS) ---------- */
-	var syncing = false, syncAgain = false, pendingCbs = [];
-	function syncFiles(cb) {
-		if (!Module.FS) { if (cb) cb(); return; }
-		if (typeof cb === 'function') pendingCbs.push(cb);
-		if (syncing) { syncAgain = true; return; }
-		syncing = true;
-		var cbs = pendingCbs; pendingCbs = [];
-		Module.FS.syncfs(false, function (err) {
-			syncing = false;
-			if (err) status('Saving to browser storage (IndexedDB) failed: ' + err + '. Use "Export save" to keep a copy.', true);
-			cbs.forEach(function (f) { f(err); });
-			if (syncAgain) { syncAgain = false; syncFiles(); }
-		});
-	}
+	/* ---------- saves: IndexedDB (IDBFS), Export / Import / New game in rvip-app.js ---------- */
 	/* the save file is save/<uid><name>; the page passes -u <name> to find it again */
 	function saveFile() {
 		try {
 			return Module.FS.readdir(SAVES).filter(function (f) { return f[0] !== '.' && !/\.tmp$/.test(f); })[0] || null;
 		} catch (e) { return null; }
 	}
-	function exportSave() {
-		var f = saveFile();
-		if (!f) { status('There is no saved game yet.', true); setTimeout(function () { status(''); }, 2000); return; }
-		var a = document.createElement('a');
-		a.href = URL.createObjectURL(new Blob([Module.FS.readFile(SAVES + '/' + f)], { type: 'application/octet-stream' }));
-		a.download = f;
-		document.body.appendChild(a); a.click();
-		setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-	}
 	function clearSaves() { var f; while ((f = saveFile())) Module.FS.unlink(SAVES + '/' + f); }
-	function importSave(file) {
-		var name = file.name.replace(/^\d+/, '').replace(/[^\w-]/g, '');
-		if (!name) { status('A Hack save file is named like 501Name (user number, then the character name).', true); return; }
-		var r = new FileReader();
-		r.onload = function () {
-			if (!confirm('Replace the current game with "' + file.name + '"?')) return;
-			running = false;
-			clearSaves();
-			Module.FS.writeFile(SAVES + '/0' + name, new Uint8Array(r.result));
-			syncFiles(function (err) { if (!err) location.reload(); });
-		};
-		r.readAsArrayBuffer(file);
-	}
-	function newGame() {
-		if (!confirm('Delete the saved game in this browser and start a new one?')) return;
-		running = false;
-		clearSaves();
-		syncFiles(function (err) { if (!err) location.reload(); });
-	}
-
-	/* ---------- help ---------- */
-	var helpLoaded = false;
-	function toggleHelp() {
-		var h = $('help');
-		h.hidden = !h.hidden;
-		if (!h.hidden && !helpLoaded) {
-			helpLoaded = true;
-			fetch('help.html').then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
-				.then(function (t) { $('help-body').innerHTML = t; })
-				.catch(function (err) { helpLoaded = false; $('help-body').textContent = 'Could not load the guide (' + err + '). Press ? in the game for its own help.'; });
-		}
-		if (!h.hidden) $('help-body').focus();
-	}
+	var app = RvipApp({
+		name: 'hack',
+		save: function () { var f = saveFile(); return f ? SAVES + '/' + f : null; },
+		clear: clearSaves,
+		put: function (file, data) {
+			var name = file.name.replace(/^\d+/, '').replace(/[^\w-]/g, '');
+			if (!name) return 'A Hack save file is named like 501Name (user number, then the character name).';
+			Module.FS.writeFile(SAVES + '/0' + name, data);
+		},
+		helpText: 'Press ? in the game for its own help.'
+	});
 
 	/* ---------- startup ---------- */
 	window.Module = {
@@ -407,7 +354,7 @@
 			FS.mount(Module.IDBFS, {}, DIR);
 			Module.addRunDependency('idbfs');
 			FS.syncfs(true, function (err) {
-				if (err) status('Could not read saved games from IndexedDB (' + err + '). Saving may not work in this browser mode.', true);
+				if (err) app.status('Could not read saved games from IndexedDB (' + err + '). Saving may not work in this browser mode.', true);
 				/* game files from the build; level files a closed page left behind go */
 				FS.readdir(DIR).forEach(function (f) {
 					if (f[0] === '.' || KEEP[f] || /^bones/.test(f)) return;
@@ -421,27 +368,12 @@
 				Module.removeRunDependency('idbfs');
 			});
 		}],
-		onRuntimeInitialized: function () { running = true; status(''); },
+		onRuntimeInitialized: function () { app.running = true; app.status(''); },
 		print: function (s) { console.log(s); },
 		printErr: function (s) { console.warn(s); },
-		setStatus: function (s) { if (s && !running) status(s.replace(/\(\d+\/\d+\)/, '').trim() || 'Loading…'); },
-		onAbort: function (what) { crashed(what); }
+		setStatus: function (s) { if (s && !app.running) app.status(s.replace(/\(\d+\/\d+\)/, '').trim() || 'Loading…'); },
+		onAbort: function (what) { app.crashed(what); }
 	};
-	function crashed(err) {
-		if (!running) return;
-		running = false;
-		var msg = (err && (err.message || err.reason && err.reason.message)) || String(err);
-		console.error('[hack] crash:', err);
-		status('The game crashed (' + msg + '). Reload the page to continue from the last autosave.', true);
-	}
-	window.addEventListener('unhandledrejection', function (e) {
-		if (e.reason && e.reason.name === 'ExitStatus') return;   /* exit() is the normal end */
-		crashed(e.reason);
-	});
-	window.addEventListener('error', function (e) {
-		if (e.error && e.error.name === 'ExitStatus') return;
-		if (e.error instanceof WebAssembly.RuntimeError || /hack-core/.test(e.filename || '')) crashed(e.error || e.message);
-	});
 	document.addEventListener('visibilitychange', function () { if (document.hidden) wantSaveFlag = true; });
 
 	window.addEventListener('resize', function () { if (wm) wm.apply(); });
@@ -461,12 +393,6 @@
 		[[$('sel-font'), 'face'], [mapSel, 'mapFace']].forEach(function (a) {
 			a[0].onchange = function () { L[a[1]] = this.value; saveLayout(); loadFace(this.value, true); this.blur(); };
 		});
-		$('btn-export').onclick = exportSave;
-		$('btn-import').onclick = function () { $('import-file').click(); };
-		$('import-file').onchange = function () { if (this.files[0]) importSave(this.files[0]); this.value = ''; };
-		$('btn-new').onclick = newGame;
-		$('btn-help').onclick = toggleHelp;
-		$('help-close').onclick = toggleHelp;
 		$('btn-restart').onclick = function () { location.reload(); };
 		document.querySelectorAll('button').forEach(function (b) {
 			b.addEventListener('mousedown', function (e) { e.preventDefault(); });
