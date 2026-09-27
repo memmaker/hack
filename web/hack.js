@@ -36,7 +36,7 @@
 	 * window, scrolled to keep the hero in view; row 0 plus the message
 	 * history in Messages, row 23 in Status, text over the map in a pop-up. */
 	var ROWS = MAP1 - MAP0 + 1, GUT = 6, TITLE = 22, log = [], hero = { y: 0, x: 0, lev: -1 }, off = { x: 0, y: 0 };
-	var L = { cell: 0, font: 13, vis: 13, wm: null }, LAYOUT = DIR + '/web-layout.json', wm = null;
+	var L = { cell: 0, fs: {}, wm: null }, LAYOUT = DIR + '/web-layout.json', wm = null;
 	function esc(t) { return t.replace(/[&<>]/g, function (c) { return '&' + (c === '&' ? 'amp' : c === '<' ? 'lt' : 'gt') + ';'; }); }
 	/* screen row y, columns x0..x1 as HTML (standout, cursor) */
 	function rowHtml(y, x0, x1, cursor) {
@@ -115,15 +115,16 @@
 	function saveLayout() {
 		try { Module.FS.writeFile(LAYOUT, JSON.stringify(L)); syncFiles(); } catch (e) { console.warn('layout not saved', e); }
 	}
+	function fs(id) { return L.fs[id] || 13; }
 	function fonts() {
-		['msg', 'stat', 'inv', 'pop'].forEach(function (id) { $(id).style.fontSize = L.font + 'px'; });
-		$('vis').style.fontSize = L.vis + 'px';
+		['msg', 'stat', 'inv', 'vis'].forEach(function (id) { $(id).style.fontSize = fs(id) + 'px'; });
+		$('pop').style.fontSize = fs('msg') + 'px';   /* pop-up text = the message font */
 	}
 	/* windows: the shared tiling window manager (rvip-wm.js, RVIP.md 5b) */
 	function makeWM() {
-		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, font: s.font || 13, vis: s.vis || 13, wm: s.wm }; } catch (e) { }
+		try { var s = JSON.parse(Module.FS.readFile(LAYOUT, { encoding: 'utf8' })); if (s) L = { cell: s.cell | 0, fs: s.fs || { msg: s.font, stat: s.font, inv: s.font, vis: s.vis }, wm: s.wm }; } catch (e) { }
 		if (L.cell >= 8 && L.cell <= 64) { cell = L.cell; auto = false; }
-		var H = $('game').clientHeight || 600, line = Math.ceil(L.font * 1.4) + 6;
+		var H = $('game').clientHeight || 600, line = Math.ceil(fs('msg') * 1.4) + 6;
 		wm = RvipWM({
 			area: $('game'), menu: $('btn-layout'),
 			wins: [{ id: 'map', title: 'Map' }, { id: 'msg', title: 'Messages' }, { id: 'stat', title: 'Status' }, { id: 'inv', title: 'Inventory' }, { id: 'vis', title: 'Visible' }],
@@ -133,11 +134,10 @@
 			save: function (st) { L.wm = st; saveLayout(); },
 			layout: function (r) { rects = r; fonts(); if (auto) { cell = fit(); measure(); } scrollMap(true); draw(); },
 			font: function (id, d) {
-				if (id === 'vis') L.vis = Math.max(8, Math.min(28, L.vis + d));
-				else L.font = Math.max(8, Math.min(28, L.font + d));
+				L.fs[id] = Math.max(8, Math.min(28, fs(id) + d));   /* each window its own size */
 				fonts(); saveLayout();
 			},
-			onReset: function () { auto = true; L.cell = 0; L.font = L.vis = 13; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); }
+			onReset: function () { auto = true; L.cell = 0; L.fs = {}; L.wm = wm.state(); fonts(); cell = fit(); measure(); scrollMap(true); draw(); saveLayout(); }
 		});
 		wm.apply();
 	}
