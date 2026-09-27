@@ -81,6 +81,8 @@ void vt_push(const char *k) { strncat(queue, k, sizeof queue - strlen(queue) - 1
  * Up/down/8/2 move, any other key returns the cursor index and leaves
  * the key in vt_menukey. */
 int vt_menukey;
+const char **vt_menufg;          /* per-item colour for the next vt_menu (css), or 0 */
+const char *vt_rowfg[ROWS];      /* screen row colours while a menu is up */
 int vt_menu(const char **item, int n, int cur)
 {
     int w = 0, h = n < ROWS - 2 ? n : ROWS - 2, top = 0, y0, x0, k;
@@ -92,6 +94,8 @@ int vt_menu(const char **item, int n, int cur)
     fflush(stdout);
     memcpy(save, scr, sizeof scr);
     be_menu = 1;
+    const char **fg = vt_menufg;
+    vt_menufg = 0;
     for (;;) {
         if (cur < top) top = cur;
         if (cur >= top + h) top = cur - h + 1;
@@ -102,6 +106,7 @@ int vt_menu(const char **item, int n, int cur)
                 if (y && y <= h && x >= 2 && x - 2 < (int)strlen(t) && x - 2 < w) c = (unsigned char)t[x - 2];
                 scr[y0 + y][x0 + x] = c | (y && y <= h && top + y - 1 == cur && x && x < w + 3 ? A_STANDOUT : 0);
             }
+        for (int y = 0; y < h; y++) vt_rowfg[y0 + 1 + y] = fg ? fg[top + y] : 0;
         if (top) scr[y0][x0 + w + 2] = '^';
         if (top + h < n) scr[y0 + h + 1][x0 + w + 2] = 'v';
         present();
@@ -113,6 +118,7 @@ int vt_menu(const char **item, int n, int cur)
         else break;
     }
     be_menu = 0;
+    memset(vt_rowfg, 0, sizeof vt_rowfg);
     memcpy(scr, save, sizeof scr);
     present();
     vt_menukey = k;

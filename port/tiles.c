@@ -83,13 +83,16 @@ static int terrain(int x, int y, int ch)
     return -1;
 }
 
-static int obj_tile(struct obj *o)
+int tile_obj(struct obj *o)
 {
     struct objclass *c = &objects[o->otyp];
     char s[2] = { o->olet, 0 };
     if (c->oc_descr) { char k[64]; snprintf(k, sizeof k, "%s%s", s, c->oc_descr); return keyed("D:", k); }
     return c->oc_name ? keyed("O:", c->oc_name) : -1;
 }
+
+int tile_gold(void) { return T(gold); }
+int tile_mon(struct monst *m) { return m->data->mlet == '~' ? slot("M:long worm tail") : keyed("M:", m->data->mname); }
 
 /* Tile slot for screen cell (sy, sx) showing ch; *un = floor under it or -1.
    -1: blank, or the screen shows something the game doesn't (text, rays). */
@@ -109,7 +112,7 @@ int tile_for(int sy, int sx, int ch, int *un)
     *un = under(x, y);
     if (ch == '$') return T(gold);
     for (o = fobj; o; o = o->nobj)
-        if (o->ox == x && o->oy == y && o->olet == ch && (t = obj_tile(o)) >= 0) return t;
+        if (o->ox == x && o->oy == y && o->olet == ch && (t = tile_obj(o)) >= 0) return t;
     switch (ch) {   /* remembered object, or a mimic */
     case '0': return slot("O:heavy iron ball");
     case '_': return slot("O:iron chain");
@@ -118,6 +121,24 @@ int tile_for(int sy, int sx, int ch, int *un)
     if ((t = keyed("C:", s)) >= 0) return t;
     *un = -1;
     return -1;
+}
+
+/* Angband's colour for an object class (RVIP W0: colours come from the game) */
+const char *obj_css(int olet)
+{
+    switch (olet) {
+    case AMULET_SYM: return "#ff9000";
+    case FOOD_SYM:   return "#d09050";
+    case WEAPON_SYM: return "#b0b0b8";
+    case TOOL_SYM:   return "#c0c0c0";
+    case ARMOR_SYM:  return "#a07040";
+    case POTION_SYM: return "#40a0ff";
+    case SCROLL_SYM: return "#ffffff";
+    case WAND_SYM:   return "#40d040";
+    case RING_SYM:   return "#ff4040";
+    case GEM_SYM:    return "#ff60ff";
+    }
+    return "";
 }
 
 int vt_cooked(void) { return !flags.cbreak; }

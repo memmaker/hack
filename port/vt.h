@@ -26,3 +26,10 @@ void vt_push(const char *keys);
 int vt_queued(void);                  /* keys the game reads next */
 int vt_menu(const char **item, int n, int cur);  /* box; returns cursor, key in vt_menukey */
 extern int vt_menukey;                           /* key that ended vt_menu */
+extern const char **vt_menufg;        /* set before vt_menu: a css colour per item */
+extern const char *vt_rowfg[24];      /* colour of each screen row while a menu is up */
+const char *obj_css(int olet);        /* be_web.c / be_x11.c: colour of an object class */
+struct obj; struct monst;
+int tile_obj(struct obj *o);          /* tiles.c: tile of an object, -1 none */
+int tile_mon(struct monst *m);
+int tile_gold(void);

@@ -207,16 +207,17 @@ static char *inv_menu(void)
 {
     static char line[52][80];
     static int cur;
-    const char *it[52];
+    const char *it[52], *fg[52];
     struct obj *o;
     int n = 0, k;
 
     reopen = 0;
     for (o = invent; o && n < 52; o = o->nobj, n++)
-        snprintf(line[n], 80, "%c - %.74s", obj_to_let(o), doname(o)), it[n] = line[n];
+        snprintf(line[n], 80, "%c - %.74s", obj_to_let(o), doname(o)), it[n] = line[n], fg[n] = obj_css(o->olet);
     if (!n) { pline("You are empty handed."); return 0; }
     for (;;) {
         if (cur >= n) cur = n - 1;
+        vt_menufg = fg;       /* the pop-up uses the Inventory pane's colours */
         cur = vt_menu(it, n, cur);
         k = vt_menukey, o = nth(cur);
         if (k == '\n' || k == ' ' || k == '5' || k == BE_RIGHT || k == '6') {
@@ -238,7 +239,7 @@ static char *inv_menu(void)
 /* item prompt: cursor list of the allowed letters, else the typed key */
 int rl_pick(const char *lets)
 {
-    const char *it[52];
+    const char *it[52], *fg[52];
     static char line[52][80];
     char let[52];
     struct obj *o;
@@ -248,8 +249,9 @@ int rl_pick(const char *lets)
     if (vt_queued() || !lets) return readchar();
     for (o = invent; o && n < 52; o = o->nobj)
         if (index(lets, obj_to_let(o)))
-            let[n] = obj_to_let(o), snprintf(line[n], 80, "%c - %.74s", let[n], doname(o)), it[n] = line[n], n++;
+            let[n] = obj_to_let(o), snprintf(line[n], 80, "%c - %.74s", let[n], doname(o)), it[n] = line[n], fg[n] = obj_css(o->olet), n++;
     if (!n) return readchar();
+    vt_menufg = fg;
     c = vt_menu(it, n, 0);
     if (vt_menukey == '\n' || vt_menukey == ' ' || vt_menukey == '5') return let[c];
     if (vt_menukey == '0' || vt_menukey == BE_LEFT) return 033;
