@@ -12,8 +12,9 @@
 	var KEEP = { 'web-layout.json': 1, help: 1, hh: 1, data: 1, rumors: 1, news: 1, perm: 1, record: 1, save: 1 };
 	var FONT = '"DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace';
 	var FG = '#d7d7d7', A_STANDOUT = 0x10000, MAP0 = 1, MAP1 = 22;
-	/* Tiles button cycles NetHack -> DawnLike -> None (text) */
-	var SETS = { nethack: ['tiles.png', 'NetHack'], dawn: ['tiles-dawn.png', 'DawnLike'], none: [null, 'None'] }, ORDER = ['nethack', 'dawn', 'none'];
+	/* Tiles button cycles NetHack -> DawnLike -> DawnLike|a (animated) -> None (text) */
+	var SETS = { nethack: ['tiles.png', 'NetHack'], dawn: ['tiles-dawn.png', 'DawnLike'],
+		dawna: ['tiles-dawn.png', 'DawnLike|a', 'tiles-dawn-1.png'], none: [null, 'None'] }, ORDER = ['nethack', 'dawn', 'dawna', 'none'];
 	/* arrows: 0x101.. (be_web.c makes them hjkl, or cursor keys in menus) */
 	var KEYS = { ArrowUp: 0x101, ArrowDown: 0x102, ArrowLeft: 0x103, ArrowRight: 0x104, Home: 121, PageUp: 117,
 		End: 98, PageDown: 110, Clear: 46, Enter: 10, Escape: 27, Backspace: 8, Delete: 8, Tab: 9 };
@@ -24,7 +25,7 @@
 	var cv, ctx, cell = 18, auto = true;
 	var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 	var set = 'dawn', sheets = {}, rowfg = [], invCache = '';
-	function tilesReady() { var i = sheets[set]; return !!(SETS[set][0] && i && i.complete && i.naturalWidth); }
+	function tilesReady() { var i = sheets[SETS[set][0]]; return !!(SETS[set][0] && i && i.complete && i.naturalWidth); }
 
 	function $(id) { return document.getElementById(id); }
 	function status(msg, isError) {
@@ -78,7 +79,7 @@
 		ctx.fillText(String.fromCharCode(c), px + w / 2, py + h / 2 + 1);
 	}
 	function tile(t, px, py) {
-		var img = sheets[set];
+		var img = frame && anim && sheets[SETS[set][2]] || sheets[SETS[set][0]];
 		if (tilesReady()) ctx.drawImage(img, (t % 32) * 16, (t >> 5) * 16, 16, 16, px, py, cell, cell);
 	}
 	function draw() {
@@ -86,15 +87,7 @@
 		var y, x, k, py, lines = [];
 		ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 80 * cell, ROWS * cell);
 		for (y = MAP0; y <= MAP1; y++)
-			for (x = 0; x < 80; x++) {
-				k = cells[y * 80 + x]; py = (y - MAP0) * cell;
-				if (!tilesReady()) glyph(scr[y * 80 + x] & 255, x * cell, py, cell, cell, Math.round(cell * 0.78));   /* None: text */
-				else if (k > 0) {
-					var t = k >> 12, u = (k & 0xfff) - 1;
-					if (u >= 0) tile(u, x * cell, py);
-					tile(t, x * cell, py);
-				} else if (k < 0) glyph(-2 - k, x * cell, py, cell, cell, Math.round(cell * 0.78));
-			}
+			for (x = 0; x < 80; x++) drawCell(y, x);
 		var pop = $('pop'), inbox = box[1] >= 0 && cur.y >= box[0] && cur.y <= box[1];
 		if (box[1] >= 0) {
 			for (y = box[0]; y <= box[1]; y++) lines.push(rowHtml(y, box[2], box[3], inbox));
@@ -106,10 +99,7 @@
 			pop.style.top = my + 'px';
 			pop.style.maxHeight = r.height + 'px';
 		} else pop.hidden = true;
-		if (cur.y >= MAP0 && cur.y <= MAP1 && !inbox && !(cur.y === hero.y && cur.x === hero.x)) {   /* no cursor on the hero */
-			ctx.strokeStyle = FG; ctx.lineWidth = 1;
-			ctx.strokeRect(cur.x * cell + 0.5, (cur.y - MAP0) * cell + 0.5, cell - 1, cell - 1);
-		}
+		drawCursor();
 		/* messages: history (dim), then the live top line with the cursor */
 		var ml = $('msg'), body = ml.parentNode;
 		ml.innerHTML = log.map(function (t) { return '<span class="old">' + esc(t) + '</span>'; }).join('\n') +
@@ -119,6 +109,51 @@
 		RvipWM.prompt.text(rowText(0));      /* the prompt line over the map */
 		scrollMap(false);
 	}
+	function drawCell(y, x) {
+		var k = cells[y * 80 + x], py = (y - MAP0) * cell;
+		if (!tilesReady()) glyph(scr[y * 80 + x] & 255, x * cell, py, cell, cell, Math.round(cell * 0.78));   /* None: text */
+		else if (k > 0) {
+			var t = k >> 12, u = (k & 0xfff) - 1;
+			ctx.fillStyle = '#000'; ctx.fillRect(x * cell, py, cell, cell);
+			if (u >= 0) tile(u, x * cell, py);
+			tile(t, x * cell, py);
+		} else if (k < 0) glyph(-2 - k, x * cell, py, cell, cell, Math.round(cell * 0.78));
+	}
+	function drawCursor() {
+		var inbox = box[1] >= 0 && cur.y >= box[0] && cur.y <= box[1];
+		if (cur.y >= MAP0 && cur.y <= MAP1 && !inbox && !(cur.y === hero.y && cur.x === hero.x)) {   /* no cursor on the hero */
+			ctx.strokeStyle = FG; ctx.lineWidth = 1;
+			ctx.strokeRect(cur.x * cell + 0.5, (cur.y - MAP0) * cell + 0.5, cell - 1, cell - 1);
+		}
+	}
+	/* animation ("DawnLike|a"): every 500 ms the map draws from the frame-1
+	 * sheet and back; only cells whose sprite (or floor under it) differs
+	 * between the two sheets (anim[slot], found once) are redrawn */
+	var frame = 0, anim = null;
+	function findAnim() {
+		var a = sheets[SETS.dawna[0]], b = sheets[SETS.dawna[2]];
+		if (!a || !b || !a.naturalWidth || !b.naturalWidth) return;
+		var W = a.naturalWidth, H = a.naturalHeight, c = document.createElement('canvas'), g;
+		c.width = W; c.height = H; g = c.getContext('2d');
+		g.drawImage(a, 0, 0); var da = g.getImageData(0, 0, W, H).data;
+		g.clearRect(0, 0, W, H); g.drawImage(b, 0, 0); var db = g.getImageData(0, 0, W, H).data;
+		var n = (W / 16) * (H / 16);
+		anim = new Uint8Array(n);
+		for (var s = 0; s < n; s++)
+			for (var y = 0, x0 = (s % (W / 16)) * 16, y0 = ((s / (W / 16)) | 0) * 16; y < 16 && !anim[s]; y++)
+				for (var i = ((y0 + y) * W + x0) * 4, e = i + 64; i < e; i++) if (da[i] !== db[i]) { anim[s] = 1; break; }
+	}
+	setInterval(function () {
+		if (!cells || set !== 'dawna' || !tilesReady() || document.hidden) return;
+		if (!anim) findAnim();
+		if (!anim) return;
+		frame ^= 1;
+		for (var i = MAP0 * 80; i < (MAP1 + 1) * 80; i++) {
+			var k = cells[i];
+			if (k > 0 && (anim[k >> 12] || anim[(k & 0xfff) - 1])) drawCell((i / 80) | 0, i % 80);
+		}
+		drawCursor();
+	}, 500);
 	/* keep the hero in the middle half of the map window; recentre when it leaves it */
 	function scrollMap() {
 		off = RvipWM.center(cv, (hero.x + 0.5) * cell, (hero.y - MAP0 + 0.5) * cell, 80 * cell, ROWS * cell);
@@ -208,11 +243,13 @@
 		set = SETS[s] ? s : 'dawn';
 		store('hack-tileset', set);
 		$('btn-tiles').textContent = 'Tiles: ' + SETS[set][1];
-		if (SETS[set][0] && !sheets[set]) {
-			var img = sheets[set] = new Image(), mine = set;
+		frame = 0;
+		[SETS[set][0], SETS[set][2]].forEach(function (src) {
+			if (!src || sheets[src]) return;
+			var img = sheets[src] = new Image(), mine = set;
 			img.onload = function () { if (set === mine) retile(); };   /* a late sheet can't turn tiles back on after None */
-			img.src = SETS[set][0];
-		}
+			img.src = src;
+		});
 		retile();
 	}
 	function retile() {        /* the tile set changed: the map and both lists at once */
