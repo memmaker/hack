@@ -92,9 +92,11 @@
 			for (y = box[0]; y <= box[1]; y++) lines.push(rowHtml(y, box[2], box[3], inbox));
 			pop.innerHTML = lines.join('\n');
 			pop.hidden = false;
-			var m = rects.map, pw = pop.offsetWidth;
-			pop.style.left = Math.max(m[0], Math.min(m[0] + m[2] - pw, m[0] + box[2] * cell - off.x)) + 'px';
-			pop.style.top = m[1] + 'px';
+			var b = $('map'), g = pop.offsetParent.getBoundingClientRect(), r = b.getBoundingClientRect(), pw = pop.offsetWidth;
+			var mx = r.left - g.left, my = r.top - g.top;       /* map body, below the title bar */
+			pop.style.left = Math.max(mx, Math.min(mx + r.width - pw, mx + box[2] * cell + Math.min(0, -off.x))) + 'px';
+			pop.style.top = my + 'px';
+			pop.style.maxHeight = r.height + 'px';
 		} else pop.hidden = true;
 		if (cur.y >= MAP0 && cur.y <= MAP1 && !inbox) {
 			ctx.strokeStyle = FG; ctx.lineWidth = 1;
