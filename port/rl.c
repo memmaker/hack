@@ -85,8 +85,9 @@ static int step(void)
     for (x = 0; x < COLNO; x++)
         for (y = 0; y < ROWNO; y++) known[x][y] |= levl[x][y].seen;
     known[u.ux][u.uy] = stood[u.ux][u.uy] = 1;
-    if (mode == '<' && u.ux == xupstair && u.uy == yupstair) return mode = 0, '<';
-    if (mode == '>' && u.ux == xdnstair && u.uy == ydnstair) return mode = 0, '>';
+    /* auto-stairs only walks there: the player presses the key again to take them */
+    if (mode == '<' && u.ux == xupstair && u.uy == yupstair) return 0;
+    if (mode == '>' && u.ux == xdnstair && u.uy == ydnstair) return 0;
     if (vt_msgs != lastmsg || be_getkey(0) >= 0) return 0;
     if (lastx == u.ux && lasty == u.uy) return 0;   /* last step did not move */
     if (mode == 'x' && threat()) return 0;   /* stairs walk: messages stop it */
@@ -118,6 +119,7 @@ static int cmd_menu(void)
             int ctl = b[1] == '^' && b[2] != '\t';  /* "^Z" but not "^" */
             t = b[2 + ctl] == '\t' ? b + 3 + ctl : 0;
             if (!t) continue;                        /* "kjhlyubn - ..." */
+            if (index("mMfF", b[1]) && !ctl) continue;   /* no movement in the Enter menu */
             key[n] = ctl ? b[2] & 037 : b[1];
             t[strcspn(t, "\n")] = 0;
             snprintf(line[n], 80, "%-2.*s %.66s", 1 + ctl, b + 1, t);
