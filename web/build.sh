@@ -19,5 +19,7 @@ emcc -O2 $EMFLAGS -std=gnu99 -w -D_GNU_SOURCE -D__linux__ -Dusleep=hk_usleep -DH
 	-sFORCE_FILESYSTEM -lidbfs.js -sENVIRONMENT=web
 rm -rf "$SEED"
 cp web/index.html web/hack.js port/tiles-dawn.png port/tiles.png "$OUT/"
+# text fonts: the index page's fonts/ (served at ../fonts/ next to the games)
+(cd ~/Games/roguelikes-index/fonts 2>/dev/null && ls *.woff | sed 's/\.woff$//') | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().split()))' > "$OUT/fonts.json"
 python3 web/make-help.py > "$OUT/help.html"
 ls -la "$OUT"
