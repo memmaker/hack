@@ -43,22 +43,45 @@ static int expect(int x, int y)
     return r->scrsym ? r->scrsym : ' ';
 }
 
-static int under(int x, int y)
+/* Floor autotiles (DawnLike): the floor kind of the real level (not what
+   the player sees, or the rim would follow the lit area): 1 room, 2 corridor,
+   3 doorway (same kind as either); secret doors and corridors are wall/rock. */
+static int fkind(int x, int y)
 {
+    if (x < 1 || x >= COLNO || y < 0 || y >= ROWNO) return 0;
     switch (levl[x][y].typ) {
-    case CORR: return T(corr);
+    case ROOM: return 1;
+    case CORR: return 2;
+    case DOOR: return 3;
     }
-    return T(floor);
+    return 0;
 }
+/* slot base+mask, a border on each side (n=8 s=4 w=2 e=1) whose neighbour isn't this floor */
+static int autotile(int x, int y)
+{
+    static int fb = -2, cb = -2;
+    int k = fkind(x, y), m = 0, i;
+    static const int dx[4] = { 0, 0, -1, 1 }, dy[4] = { -1, 1, 0, 0 };
+    if (fb == -2) fb = slot("T:floors/0"), cb = slot("T:corrs/0");
+    if (k == 3) k = 1;              /* a doorway shows room floor */
+    for (i = 0; i < 4; i++) {
+        int n = fkind(x + dx[i], y + dy[i]);
+        if (n != k && n != 3) m |= 8 >> i;
+    }
+    if (k == 2) return cb >= 0 ? cb + m : T(corr);
+    return fb >= 0 ? fb + m : T(floor);
+}
+
+static int under(int x, int y) { return autotile(x, y); }
 
 static int terrain(int x, int y, int ch)
 {
     struct trap *t;
     switch (ch) {
-    case '.': return T(floor);
-    case CORR_SYM: return T(corr);
+    case '.': return autotile(x, y);
+    case CORR_SYM: return autotile(x, y);
     case '|': return T(vwall);
-    case '+': return T(floor);     /* doorways: Hack can't open or close doors */
+    case '+': return autotile(x, y);   /* doorways: Hack can't open or close doors */
     case '<': return T(up);
     case '>': return T(down);
     case POOL_SYM: return T(pool);
@@ -83,13 +106,16 @@ static int terrain(int x, int y, int ch)
     return -1;
 }
 
-static int obj_tile(struct obj *o)
+int tile_obj(struct obj *o)
 {
     struct objclass *c = &objects[o->otyp];
     char s[2] = { o->olet, 0 };
     if (c->oc_descr) { char k[64]; snprintf(k, sizeof k, "%s%s", s, c->oc_descr); return keyed("D:", k); }
     return c->oc_name ? keyed("O:", c->oc_name) : -1;
 }
+
+int tile_gold(void) { return T(gold); }
+int tile_mon(struct monst *m) { return m->data->mlet == '~' ? slot("M:long worm tail") : keyed("M:", m->data->mname); }
 
 /* Tile slot for screen cell (sy, sx) showing ch; *un = floor under it or -1.
    -1: blank, or the screen shows something the game doesn't (text, rays). */
@@ -109,7 +135,7 @@ int tile_for(int sy, int sx, int ch, int *un)
     *un = under(x, y);
     if (ch == '$') return T(gold);
     for (o = fobj; o; o = o->nobj)
-        if (o->ox == x && o->oy == y && o->olet == ch && (t = obj_tile(o)) >= 0) return t;
+        if (o->ox == x && o->oy == y && o->olet == ch && (t = tile_obj(o)) >= 0) return t;
     switch (ch) {   /* remembered object, or a mimic */
     case '0': return slot("O:heavy iron ball");
     case '_': return slot("O:iron chain");
@@ -118,6 +144,24 @@ int tile_for(int sy, int sx, int ch, int *un)
     if ((t = keyed("C:", s)) >= 0) return t;
     *un = -1;
     return -1;
+}
+
+/* Angband's colour for an object class (RVIP W0: colours come from the game) */
+const char *obj_css(int olet)
+{
+    switch (olet) {
+    case AMULET_SYM: return "#ff9000";
+    case FOOD_SYM:   return "#d09050";
+    case WEAPON_SYM: return "#b0b0b8";
+    case TOOL_SYM:   return "#c0c0c0";
+    case ARMOR_SYM:  return "#a07040";
+    case POTION_SYM: return "#40a0ff";
+    case SCROLL_SYM: return "#ffffff";
+    case WAND_SYM:   return "#40d040";
+    case RING_SYM:   return "#ff4040";
+    case GEM_SYM:    return "#ff60ff";
+    }
+    return "";
 }
 
 int vt_cooked(void) { return !flags.cbreak; }

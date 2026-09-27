@@ -85,8 +85,9 @@ static int step(void)
     for (x = 0; x < COLNO; x++)
         for (y = 0; y < ROWNO; y++) known[x][y] |= levl[x][y].seen;
     known[u.ux][u.uy] = stood[u.ux][u.uy] = 1;
-    if (mode == '<' && u.ux == xupstair && u.uy == yupstair) return mode = 0, '<';
-    if (mode == '>' && u.ux == xdnstair && u.uy == ydnstair) return mode = 0, '>';
+    /* auto-stairs only walks there: the player presses the key again to take them */
+    if (mode == '<' && u.ux == xupstair && u.uy == yupstair) return 0;
+    if (mode == '>' && u.ux == xdnstair && u.uy == ydnstair) return 0;
     if (vt_msgs != lastmsg || be_getkey(0) >= 0) return 0;
     if (lastx == u.ux && lasty == u.uy) return 0;   /* last step did not move */
     if (mode == 'x' && threat()) return 0;   /* stairs walk: messages stop it */
@@ -118,6 +119,7 @@ static int cmd_menu(void)
             int ctl = b[1] == '^' && b[2] != '\t';  /* "^Z" but not "^" */
             t = b[2 + ctl] == '\t' ? b + 3 + ctl : 0;
             if (!t) continue;                        /* "kjhlyubn - ..." */
+            if (index("mMfF", b[1]) && !ctl) continue;   /* no movement in the Enter menu */
             key[n] = ctl ? b[2] & 037 : b[1];
             t[strcspn(t, "\n")] = 0;
             snprintf(line[n], 80, "%-2.*s %.66s", 1 + ctl, b + 1, t);
@@ -205,16 +207,17 @@ static char *inv_menu(void)
 {
     static char line[52][80];
     static int cur;
-    const char *it[52];
+    const char *it[52], *fg[52];
     struct obj *o;
     int n = 0, k;
 
     reopen = 0;
     for (o = invent; o && n < 52; o = o->nobj, n++)
-        snprintf(line[n], 80, "%c - %.74s", obj_to_let(o), doname(o)), it[n] = line[n];
+        snprintf(line[n], 80, "%c - %.74s", obj_to_let(o), doname(o)), it[n] = line[n], fg[n] = obj_css(o->olet);
     if (!n) { pline("You are empty handed."); return 0; }
     for (;;) {
         if (cur >= n) cur = n - 1;
+        vt_menufg = fg;       /* the pop-up uses the Inventory pane's colours */
         cur = vt_menu(it, n, cur);
         k = vt_menukey, o = nth(cur);
         if (k == '\n' || k == ' ' || k == '5' || k == BE_RIGHT || k == '6') {
@@ -236,7 +239,7 @@ static char *inv_menu(void)
 /* item prompt: cursor list of the allowed letters, else the typed key */
 int rl_pick(const char *lets)
 {
-    const char *it[52];
+    const char *it[52], *fg[52];
     static char line[52][80];
     char let[52];
     struct obj *o;
@@ -246,8 +249,9 @@ int rl_pick(const char *lets)
     if (vt_queued() || !lets) return readchar();
     for (o = invent; o && n < 52; o = o->nobj)
         if (index(lets, obj_to_let(o)))
-            let[n] = obj_to_let(o), snprintf(line[n], 80, "%c - %.74s", let[n], doname(o)), it[n] = line[n], n++;
+            let[n] = obj_to_let(o), snprintf(line[n], 80, "%c - %.74s", let[n], doname(o)), it[n] = line[n], fg[n] = obj_css(o->olet), n++;
     if (!n) return readchar();
+    vt_menufg = fg;
     c = vt_menu(it, n, 0);
     if (vt_menukey == '\n' || vt_menukey == ' ' || vt_menukey == '5') return let[c];
     if (vt_menukey == '0' || vt_menukey == BE_LEFT) return 033;
