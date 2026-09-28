@@ -32,7 +32,7 @@ SAVING = '''<ul>
 </ul>'''
 
 WEB = '''<ul>
-<li>The map is drawn with tiles, as in the Mac version. <em>Tiles</em> switches between the DawnLike and the NetHack tile set (the choice is kept in this browser). <em>Zoom −</em> / <em>Zoom +</em> change the tile size.</li>
+<li>The map is drawn with tiles, as in the Mac version. <em>Tiles</em> switches between the DawnLike and the NetHack tile set (the choice is kept in this browser). <em>A−</em> / <em>A+</em> on the Map title bar (shown on hover) change the tile size.</li>
 <li><strong>Keys:</strong> <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd><kbd>y</kbd><kbd>u</kbd><kbd>b</kbd><kbd>n</kbd> or the arrow keys move you (Home, PgUp, End, PgDn for the diagonals); capital letters run.</li>
 <li>Browsers keep a few shortcuts for themselves (<kbd>Ctrl+W</kbd>, <kbd>Ctrl+T</kbd>, <kbd>Ctrl+N</kbd>, and <kbd>Cmd</kbd> shortcuts on a Mac), so those never reach the game.</li>
 <li>If the game ever crashes, a message appears at the top; reload the page to continue from the last autosave.</li>
