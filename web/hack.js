@@ -85,7 +85,8 @@
 		for (y = MAP0; y <= MAP1; y++)
 			for (x = 0; x < 80; x++) drawCell(y, x);
 		var pop = $('pop'), inbox = box[1] >= 0 && cur.y >= box[0] && cur.y <= box[1];
-		if (box[1] >= 0) {
+		if (page !== null) placePage();
+		else if (box[1] >= 0) {
 			for (y = box[0]; y <= box[1]; y++) lines.push(rowHtml(y, box[2], box[3], inbox));
 			pop.innerHTML = lines.join('\n');
 			pop.hidden = false;
@@ -100,6 +101,36 @@
 		$('stat').innerHTML = rowHtml(23, 0, 79, true);
 		RvipWM.prompt.text(rowText(0));      /* the prompt line over the map */
 		scrollMap(false);
+	}
+	/* pager text (be_page: long "More info?" entries, help) in the pop-up, scrolled by keys or the wheel */
+	var page = null;
+	function placePage() {     /* RvipWM.popup keeps it inside the map body (max-height: overflow scrolls) */
+		var pop = $('pop'), st = pop.hidden ? 0 : pop.scrollTop;
+		pop.hidden = false;
+		RvipWM.popup(pop, { x: 0 });
+		pop.scrollTop = st;
+	}
+	function showPage(t) {
+		var pop = $('pop');
+		pop.innerHTML = esc(t.replace(/\s+$/, '')) +
+			'\n\n<span class="old">↑↓ j k scroll · PgUp PgDn · Space next page · Esc q Enter close</span>';
+		pop.hidden = true;
+		placePage();
+	}
+	function pageKey(k) {
+		var pop = $('pop'), line = Math.ceil(parseFloat(getComputedStyle(pop).lineHeight) || 18), step = Math.max(line, pop.clientHeight - 2 * line);
+		var atEnd = pop.scrollTop + pop.clientHeight >= pop.scrollHeight - 2;
+		switch (k) {
+		case 27: case 113: case 10: case 13: return 1;                      /* Esc q Enter */
+		case 0x101: case 107: pop.scrollTop -= line; break;                 /* up, k */
+		case 0x102: case 106: pop.scrollTop += line; break;                 /* down, j */
+		case 117: case 45: pop.scrollTop -= step; break;                    /* PgUp (u), - */
+		case 110: pop.scrollTop += step; break;                             /* PgDn (n) */
+		case 32: if (atEnd) return 1; pop.scrollTop += step; break;         /* Space: next page, closes at the end */
+		case 121: case 60: pop.scrollTop = 0; break;                        /* Home (y), < */
+		case 98: case 62: pop.scrollTop = pop.scrollHeight; break;          /* End (b), > */
+		}
+		return 0;
 	}
 	function drawCell(y, x) {
 		var k = cells[y * 80 + x], py = (y - MAP0) * cell;
@@ -277,6 +308,14 @@
 			if (fold && log.length) log[log.length - 1] = t;
 			else { log.push(t); if (log.length > 200) log.shift(); }
 		},
+		/* be_page: "" = can the pop-up be used (a map window exists), text = show it, null = close */
+		page: function (t) {
+			if (t === null) { page = null; $('pop').hidden = true; draw(); return 1; }
+			if ($('game').hidden || !scr) return 0;
+			if (t) { page = t; showPage(t); }
+			return 1;
+		},
+		pageKey: pageKey,
 		cursor: function (y, x) { cur.y = y; cur.x = x; draw(); },
 		key: function (atCmd) { RvipWM.prompt.wait(atCmd); return events.length ? events.shift() : -1; },
 		/* autosave at most every 2 s, and when the page is hidden */

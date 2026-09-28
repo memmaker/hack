@@ -4,6 +4,8 @@
  * and removed when the game ends unless the player saved with S. */
 #include <emscripten.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include "hack.h"
 #include "vt.h"
@@ -123,6 +125,38 @@ int be_getkey(int wait)
         }
         emscripten_sleep(10);
     }
+}
+
+/* Pager (hack.pager.c page_more: "More info?" entries, help): the whole text
+   in one scrollable pop-up instead of 22-row pages, whose first line landed on
+   the message row. hk.pageKey scrolls and returns 1 for a key that closes. */
+EM_JS(int, js_page, (const char *s), { return Module.hk.page(s ? UTF8ToString(s) : null); });
+EM_JS(int, js_page_key, (int k), { return Module.hk.pageKey(k); });
+int be_page(FILE *fp, int strip)
+{
+    char line[512], *text = NULL, *ep;
+    size_t len = 0, n;
+
+    if (!js_page(""))
+        return 0;                   /* no map window yet (news at startup): the terminal pager */
+    while (fgets(line, sizeof line, fp) && (!strip || *line == '\t')) {
+        if ((ep = strchr(line, '\n')))
+            *ep = 0;
+        n = strlen(line + strip);
+        text = realloc(text, len + n + 2);
+        memcpy(text + len, line + strip, n);
+        len += n;
+        text[len++] = '\n';
+        text[len] = 0;
+    }
+    js_page(text ? text : " ");
+    free(text);
+    be_menu = 1;                    /* arrows stay arrows */
+    while (!js_page_key(be_getkey(1)))
+        ;
+    be_menu = 0;
+    js_page(NULL);
+    return 1;
 }
 
 int hk_usleep(unsigned us) { emscripten_sleep(us / 1000); return 0; }   /* -Dusleep: animations */

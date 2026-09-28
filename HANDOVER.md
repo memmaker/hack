@@ -111,3 +111,9 @@
   the game waits for a command, so a question stays up until answered.
   Here: `js_key(rl_at_prompt)` in `port/be_web.c`; `web/hack.js` sends screen
   row 0 (`rowText(0)`) from `draw()`.
+- Pager pop-up (web, 2026-09-28): `page_more()` (src/hack.pager.c, `__EMSCRIPTEN__`)
+  hands the whole text to `be_page()` in `port/be_web.c`, shown by `hk.page` in
+  `web/hack.js` as one scrollable pop-up (wheel, arrows/j/k, PgUp/PgDn, Home/End,
+  Space pages then closes, Esc/q/Enter close). Before, long "More info?" entries
+  (hobgoblin, leprechaun…) lost their first line to the message row. Falls back
+  to the terminal pager before the map window exists (news at startup).

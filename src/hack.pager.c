@@ -36,6 +36,9 @@ extern char quitchars[];
 int dowhatis(void);
 void page_more(FILE *fp, int strip);
 void set_pager(int mode);
+#ifdef __EMSCRIPTEN__
+int be_page(FILE *fp, int strip);
+#endif
 int page_line(const char *s);
 int dohelp(void);
 /* MODERN: CONST-CORRECTNESS: page_file filename is read-only */
@@ -110,8 +113,17 @@ void page_more(
     int strip) /* nr of chars to be stripped from each line (0 or 1) */
 {
   char *bufr, *ep;
-  sig_t prevsig = signal(SIGINT, intruph);
+  sig_t prevsig;
 
+#ifdef __EMSCRIPTEN__
+  /* RVIP web: the whole text in one scrollable pop-up (port/be_web.c) */
+  if (be_page(fp, strip)) {
+    (void)fclose(fp);
+    docrt();
+    return;
+  }
+#endif
+  prevsig = signal(SIGINT, intruph);
   set_pager(0);
   bufr = (char *)alloc((unsigned)CO);
   bufr[CO - 1] = 0;
