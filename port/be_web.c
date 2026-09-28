@@ -42,10 +42,15 @@ EM_ASYNC_JS(void, js_end, (int saved), { await Module.hk.end(saved); });   /* be
 static int cells[24][80];
 int be_menu;
 
-static void at_exit(void)
+/* Every exit() of the game runs through here (linked with -Wl,--wrap=exit): js_end awaits the IndexedDB
+   sync, which Asyncify can only unwind on the game's own call stack, not from an atexit handler that libc
+   calls indirectly while the runtime shuts down ("unreachable", "function signature mismatch"). */
+void __real_exit(int);
+void __wrap_exit(int code)
 {
     if (!rl_saved) unlink(SAVEF);     /* died or quit: the game is over */
     js_end(rl_saved);
+    __real_exit(code);
 }
 
 static void cell(int y, int x, int tile, int und, int ch)
@@ -53,7 +58,7 @@ static void cell(int y, int x, int tile, int und, int ch)
     cells[y][x] = tile >= 0 ? tile << 12 | (und + 1) : ch == ' ' ? 0 : -2 - ch;
 }
 
-void be_init(int c, int r) { atexit(at_exit); }
+void be_init(int c, int r) { }
 void be_frame(chtype s[][80])
 {
     int b[4];

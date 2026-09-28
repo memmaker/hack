@@ -16,7 +16,7 @@ emcc -O2 $EMFLAGS -std=gnu99 -w -D_GNU_SOURCE -D__linux__ -Dusleep=hk_usleep -DH
 	-sALLOW_MEMORY_GROWTH -sEXIT_RUNTIME=1 -sINITIAL_MEMORY=32MB \
 	-sEXPORTED_FUNCTIONS=_main \
 	-sEXPORTED_RUNTIME_METHODS=FS,IDBFS,ENV,HEAPU32,HEAP32,addRunDependency,removeRunDependency \
-	-sFORCE_FILESYSTEM -lidbfs.js -sENVIRONMENT=web
+	-Wl,--wrap=exit -sFORCE_FILESYSTEM -lidbfs.js -sENVIRONMENT=web
 rm -rf "$SEED"
 cp web/index.html web/hack.js port/tiles-dawn.png port/tiles-dawn-1.png port/tiles.png "$OUT/"
 # text fonts: the index page's fonts/ (served at ../fonts/ next to the games)
