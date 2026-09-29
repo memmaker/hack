@@ -1,119 +1,61 @@
-# Hack (restoHack) — RVIP
+# Hack (restoHack) — handover
 
-## RVIP progress
-- Stage 6 done (2026-09-25). Next: stage 7 (web).
-  - Docs: `hack.html` via `parse_hack()` (reads `hh`) + GAMES entry in
-    `~/Desktop/Games/Roguelikes/Docs/build-docs.py`; guide + saving in
-    `guides.py`. In-game help lives in root `help`/`hh` (the build copies
-    them over `hackdir/`; `hackdir/help`, `hackdir/hh` are stale upstream).
-  - Sound: none (upstream has none; user rule). For web, sound stays off.
-- Stage 5 done (2026-09-25). Next: stage 6 (docs + sound).
-  - `play.sh [nethack]`: TERM=vt100, HACK_TILESET (arg, env, default dawn),
-    runs `build/hack` from the repo root (tiles at `port/*.rgba`).
-  - Release build: `cmake -S . -B build -DHACKDIR_OVERRIDE=$PWD/save`.
-    `save/` (record, perm, saves) seeded from `build/hackdir` on first run.
-  - Window 1440x430 at 0,22 (HACK_POS/HACK_CELL/HACK_TEXT to change).
-  - Shortcut `~/Desktop/Games/Roguelikes/Hack.app`, icon = DawnLike fighter.
-- Stage 1 done (2026-09-25).
-- Stage 4 done (2026-09-25). Next: stage 5 (launcher + shortcut). Tiles, two sets (user: both, switchable).
-  - `port/mktiles.py` reads Hack's monster/object names from the C sources
-    and writes `tiles-dawn.png/.rgba` (DawnLike by name via
-    `rvip-tools/tilesets/dawnlike_names.tsv`, NetHack for gaps) and
-    `tiles.png/.rgba` (NetHack) with one slot layout, plus `tilemap.h`
-    (`tile_key[]`: `M:`monster, `O:`object, `D:<sym><look>` unidentified
-    appearance, `C:` class, `T:` terrain, `P:` role). Credits:
-    `port/TILES-CREDITS.txt`. Platino = chameleon (DawnLike easter egg).
-  - `port/tiles.c` `tile_for()`: game state decides the tile. Expected char =
-    `levl[][].scrsym` only if `seen || new` (mklev fills scrsym early!) or a
-    displayed monster; player from `u`. Walls/corners from neighbours,
-    doors oriented (NetHack convention), traps by `ttyp`.
-  - `be_x11.c` `be_frame()` (whole screen per present): rows 0/23 text,
-    map rows 1-22 tiles (cell 18, nearest-neighbour, per-cell cache). Cells
-    where the screen differs from the game: rows with 3+ such cells incl. a
-    letter (+ adjacent border rows) form a text box in the normal font over
-    the tiles; others (rays, thrown things) are glyphs in the cell.
-  - `HACK_TILESET=nethack|dawn`, `HACK_TILES`, `HACK_CELL`, `HACK_TEXT`.
-    Sheets are read from `port/` relative to cwd (play.sh: stage 5).
-  - vt.c now does ONLCR (`\n` = CR LF): fixed help pages, --More-- wraps.
-  - Rebuilding invalidates saves ("Saved level is out of date"): upstream.
-  - Tested live both sets, help/inventory boxes, save/restore; 400 random
-    keys under ASan clean.
-- Stage 3 done (2026-09-25).
-  - All in `port/rl.c` (+ `vt_menu`/`vt_push` in `port/vt.c`). Enter menu
-    `cmd_menu()` parses the `Commands:` lines of `help` ("\t<key>\t<text>",
-    `^X` = Ctrl); chosen key is returned from `rl_parse` as the command.
-  - `i` = `inv_menu()`, item menu `item_menu()`, action `act()`: sets
-    `rl_obj` (getobj() in src/hack.invent.c returns it once, cleared at the
-    next `rl_parse`), `R` with two rings queues l/r via `vt_push`. List
-    reopens (`reopen`) unless `threat()`. Item prompts: getobj's first
-    `readchar()` → `rl_pick(lets)` (cursor list, skipped when keys queued).
-  - `vt_menu(items,n,cur)`: box sized to content, scrolls past 22 rows,
-    returns cursor, key in `vt_menukey`; `be_menu` makes arrows BE_UP..
-    so j/k stay item letters. Numpad 8/2/5/+/-/*/0/4/6.
-  - Ceilings: Shift+letter drop only for a–z; counts in "d7a" lose 2/5/8
-    (numpad keys) at the list; no floor/equipment lists (Hack has none).
-  - Tested live + 500 random keys under ASan: clean.
-- Stage 2 done (2026-09-25).
-  - `port/rl.c`: `x` = explore, `<`/`>` off stairs walk to the known ones.
-    Hook: `rhack()` (src/hack.cmd.c) calls `rl_parse()` instead of `parse()`;
-    `rl_parse` returns one step key per turn while a mode runs.
-  - Known grid = own `known[][]` OR'd from `levl[x][y].seen` each step (Hack
-    un-sees dark room floor when you leave). Reset when a mode starts on a
-    new `dlevel`. Frontier cells stay targets until stood on.
-  - Stops: new message (`vt_msgs`, counts chars written on row 0 in vt.c),
-    any key (`be_getkey(0)`), no movement, level change; explore also on
-    any visible non-tame monster. Stairs walk ignores monsters (their
-    attacks print messages). Diagonal moves through doors skipped.
-  - Help (`help`, `hh`) updated. `<` on level 1 stairs escapes (original).
-  - Cosmetic, later: long "--More--" lines wrap to row 1; end screen
-    text wraps oddly (vt has no auto-margin fix).
-- Folder `~/Games/hack`, upstream Critlist/restoHack @ 0bd798b (full clone).
-- Case O (termcap, not curses): `port/vt.c` swaps stdin/stdout for
-  `funopen()` streams in a constructor; stdout runs through a small VT100
-  interpreter into an 80×24 buffer drawn by `port/be_x11.c` (Omega's). No
-  game source edits. Needs `TERM=vt100`. Arrows → hjkl.
-- Build: `cmake -S . -B <dir> [-DHACKDIR_OVERRIDE=<abs>] && cmake --build <dir>`
-  (`HACK_X11` option, default ON). Hackdir (saves, record) = `<dir>/hackdir`
-  unless overridden. Save name = `<uid><name>` in `hackdir/save`.
-- ASan run (`-DCMAKE_C_FLAGS=-fsanitize=address`): 150 random keys, save
-  (`S` saves at once, no prompt), restore: clean, HP kept.
-- Quirks: `S` exits the process (window closes). Upstream termcap warnings.
-- Stage 7 (web) done: https://ruzzoli.de/roguelikes/hack/
-  - Files: `port/be_web.c`, `port/termcap-web.c`, `port/web-inc/`, `web/`.
-    Build `sh web/build.sh` (after a native build; needs
-    `build/hack.onames.h`), deploy `sh web/deploy.sh`.
-  - Emscripten: `web-inc/hkio.h` force-included, redirects stdin/stdout to
-    fopencookie streams; `-D__linux__` (termios), `EXIT_RUNTIME=1`, async
-    `js_end` awaits IDBFS sync. Page makes dummy `/this.program` (gethdate).
-  - Autosave at command prompt: `dosave0(1)` + `dorecover`, write file back;
-    reset worn ptrs first; toplin=2 + `redotoplin()`; restore moonphase/luck.
-    X11 test knob `HACK_AUTOSAVE=1`.
-  - Fixed wasm traps: `hack.steal.c` somegold long, `hack.o_init.c` externs.
-  - Ceilings: menu borders spill onto message/status rows (as X11); end
-    screen not shown before overlay.
-  - Next: stage 8 (memmaker, tree, RVIP.md notes).
-- Stage 8 (publish) done: https://github.com/memmaker/hack (branch
-  `master`, remote `memmaker`); README header + compare link; deploy.sh
-  guard; selection-page card + gold tree link (Hack node, 1982 Fenlason /
-  1.0.3 1985 Brouwer, per restoHack README); RVIP.md O-Hack section;
-  rogue2wasm.md table row. Next: stage 9 shrine (`shrine/hack.html`).
-- Stage 9 (shrine) done: https://ruzzoli.de/roguelikes/shrine/hack.html
-  (Info button, tree ✦, game title link live). Manual: hack(6) + help as
-  text. No walkthrough exists (rules of thumb + NetHackWiki/RogueBasin).
-  - Bugs found while taking screenshots, fixed + deployed: item labels
-    changed after every restore (upstream restnames used the new process's
-    shuffle; save format 3 stores it as indices, v2 saves still load);
-    "<corrupted>" item names in wasm (safe_strcat rejected addresses
-    < 0x1000). Docs: Amulet is on level 30+, levels are kept.
-  - Hack is complete. Next game in RVIP-todo.md: NetHack 1.3d.
-- Prompt line (RVIP step 5 / W4, 2026-09-26): the live message row is shown in a
-  box over the map by `RvipWM.prompt` (rvip-wm.js). A key hides it only while
-  the game waits for a command, so a question stays up until answered.
-  Here: `js_key(rl_at_prompt)` in `port/be_web.c`; `web/hack.js` sends screen
-  row 0 (`rowText(0)`) from `draw()`.
-- Pager pop-up (web, 2026-09-28): `page_more()` (src/hack.pager.c, `__EMSCRIPTEN__`)
-  hands the whole text to `be_page()` in `port/be_web.c`, shown by `hk.page` in
-  `web/hack.js` as one scrollable pop-up (wheel, arrows/j/k, PgUp/PgDn, Home/End,
-  Space pages then closes, Esc/q/Enter close). Before, long "More info?" entries
-  (hobgoblin, leprechaun…) lost their first line to the message row. Falls back
-  to the terminal pager before the map window exists (news at startup).
+Port of Hack 1.0.3 via restoHack (all RVIP stages done): web build live at
+https://ruzzoli.de/roguelikes/hack/, plus a native X11 tiles build. Procedure:
+`~/Games/rvip-tools/RVIP.md` (Hack is the "O-Hack" worked example). Sister
+port: `~/Games/nethack13d` (shares the `port/` design).
+
+## Source and repo
+- Upstream Critlist/restoHack @ `0bd798b` (full clone, remote `origin`). Repo
+  https://github.com/memmaker/hack (remote `memmaker`, branch `master`); README
+  header + compare link.
+- Case O (termcap, not curses): `port/vt.c` swaps stdin/stdout for `funopen()`
+  streams and runs stdout through a small VT100 interpreter into an 80×24
+  buffer. Needs `TERM=vt100`.
+
+## Build and deploy
+- Native first (the web build needs `build/hack.onames.h`):
+  `cmake -S . -B build -DHACKDIR_OVERRIDE=$PWD/save && cmake --build build`
+  (`HACK_X11` option, default ON). Run `./play.sh [nethack]` (seeds `save/`
+  from `build/hackdir`); Desktop shortcut `~/Desktop/Games/Roguelikes/Hack.app`.
+  X11 env knobs: `HACK_TILESET=nethack|dawn`, `HACK_TILES`, `HACK_CELL`,
+  `HACK_TEXT`, `HACK_POS`, `HACK_AUTOSAVE=1` (autosave at every prompt).
+- ASan: `-DCMAKE_C_FLAGS=-fsanitize=address`.
+- Web: `sh web/build.sh` → `web/dist`; `sh web/deploy.sh`. Shared page code
+  from the parent folder: `../rvip-wm.js`, `../rvip-app.js`.
+
+## File map
+- `port/rl.c`: `x` = explore, `<`/`>` off stairs walk to known ones (stops on
+  arrival), Enter = `cmd_menu()` (parses the `Commands:` lines of `help`),
+  `i` = `inv_menu()`/`item_menu()`/`act()`. Hook: `rhack()` (src/hack.cmd.c)
+  calls `rl_parse()` instead of `parse()`.
+- `port/tiles.c` `tile_for()` (game state decides the tile), `port/mktiles.py` →
+  `port/tiles-dawn*.png/.rgba`, `port/tiles.png/.rgba`, `port/tilemap.h`;
+  credits `port/TILES-CREDITS.txt`. DawnLike default (NetHack for gaps),
+  NetHack set switchable.
+- `port/vt.c`/`vt.h`, `port/be_x11.c`, `port/be_web.c` (`js_key(rl_at_prompt)`,
+  `be_page()` pager pop-up), `port/termcap-web.c`, `port/web-inc/` (`hkio.h`
+  force-included: fopencookie streams).
+- `web/hack.js` (draws, `hk.page` scrollable pager), `web/index.html`,
+  `web/make-help.py`. In-game help: root `help`/`hh` (build copies them over the
+  stale `hackdir/` copies).
+
+## Facts and gotchas
+- Web saves live in this game's own IndexedDB folder (`RvipApp.dir`); player
+  name and tile set are stored there too (no localStorage).
+- Autosave at the command prompt: `dosave0(1)` + `dorecover`, write the file
+  back; reset worn pointers first; `toplin=2` + `redotoplin()`; restore
+  moonphase/luck. Save format 3 stores the object shuffle as indices (v2 saves
+  still load).
+- Rebuilding invalidates saves ("Saved level is out of date"): upstream.
+- `S` saves at once and exits the process. Page makes a dummy `/this.program`
+  (gethdate).
+- `page_more()` (src/hack.pager.c, `__EMSCRIPTEN__`) hands long texts to
+  `be_page()`; falls back to the terminal pager before the map exists.
+- No sound (upstream has none).
+
+## Open
+- Web: end screen not shown before the "Play again" overlay.
+- Native: long `--More--` lines wrap to row 1; end screen text wraps oddly.
+- Shift+letter drop only for a–z; counts like "d7a" lose 2/5/8 (numpad keys)
+  at the list.
